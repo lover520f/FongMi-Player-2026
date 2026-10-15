@@ -31,7 +31,7 @@ const DEFAULT_CONFIG_HISTORY: GatewayConfigSource[] = [
 
 const DEFAULTS: GatewaySettings = {
   javaHome: '',
-  host: '127.0.0.1',
+  host: '0.0.0.0',
   port: 9979,
   config: '',
   configHistory: DEFAULT_CONFIG_HISTORY,
@@ -328,7 +328,7 @@ export async function startGateway(override?: Partial<GatewaySettings>): Promise
   const dataDir = resolveDataDir(s.dataDir);
   await fs.ensureDir(dataDir);
 
-  const args = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', '-jar', jar, '--host', String(s.host || '127.0.0.1'), '--port', String(s.port || 9979), '--data', dataDir];
+  const args = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', '-jar', jar, '--host', String(s.host || '0.0.0.0'), '--port', String(s.port || 9979), '--data', dataDir];
   if (s.config) args.push('--config', s.config);
   if (s.spider) args.push('--spider', s.spider);
   if (s.token) args.push('--token', s.token);

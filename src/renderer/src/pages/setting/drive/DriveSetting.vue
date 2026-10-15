@@ -19,10 +19,10 @@
             <remove-icon />
             <span>{{ $t('pages.setting.header.delete') }}</span>
           </div>
-          <!-- <div class="item" @click="aliAuthEvent">
-              <user-icon />
-              <span>阿里授权</span>
-            </div> -->
+          <div class="item" @click="isVisible.dialogDriveLogin = true">
+            <user-icon />
+            <span>网盘登录</span>
+          </div>
         </div>
       </div>
       <div class="right-operation-container">
@@ -60,13 +60,13 @@
 
     <dialog-add-view v-model:visible="isVisible.dialogAdd" @add-table-data="tableAdd" />
     <dialog-edit-view v-model:visible="isVisible.dialogEdit" :data="formData" />
-    <!-- <dialog-ali-auth-view v-model:visible="isVisible.dialogAliAuth" /> -->
+    <dialog-drive-login-view v-model:visible="isVisible.dialogDriveLogin" />
   </div>
 </template>
 
 <script setup lang="ts">
 import _ from 'lodash';
-import { AddIcon, CheckIcon, PoweroffIcon, RemoveIcon, SearchIcon } from 'tdesign-icons-vue-next';
+import { AddIcon, CheckIcon, PoweroffIcon, RemoveIcon, SearchIcon, UserIcon } from 'tdesign-icons-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { onActivated, onMounted, ref, reactive, watch } from 'vue';
 
@@ -79,13 +79,13 @@ import { COLUMNS } from './constants';
 
 import DialogAddView from './components/DialogAdd.vue';
 import DialogEditView from './components/DialogEdit.vue';
-// import DialogAliAuthView from './components/DialogAliAuth.vue';
+import DialogDriveLoginView from './components/DialogDriveLogin.vue';
 
 // Define item form data & dialog status
 const isVisible = reactive({
   dialogAdd: false,
   dialogEdit: false,
-  dialogAliAuth: false,
+  dialogDriveLogin: false,
 });
 
 const formData = ref();
@@ -284,10 +284,6 @@ const defaultEvent = async (row) => {
     console.log('[setting][drive][defaultEvent][error]', err);
     MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
   }
-};
-
-const aliAuthEvent = () => {
-  isVisible.dialogAliAuth = true;
 };
 </script>
 
