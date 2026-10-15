@@ -68,6 +68,12 @@
     </div>
 
     <detail-view v-model:visible="isVisible.detail" :site="siteConfig.default" :data="formDetailData" />
+    <folder-view
+      v-model:visible="isVisible.folder"
+      :site="siteConfig.default"
+      :data="formFolderData"
+      @play="onFolderPlay"
+    />
     <t-loading :attach="`.${prefix}-content`" size="medium" :text="$t('pages.setting.loading')"
       :loading="isVisible.loading" />
     <t-back-top container="#back-top" size="small" :offset="['1.4rem', '0.5rem']" :duration="2000" />
@@ -102,6 +108,7 @@ import {
 } from '@/utils/cms';
 
 import DetailView from './film/Detail.vue';
+import FolderView from './film/DialogFolder.vue';
 import CommonNav from '../components/common-nav/index.vue';
 import TagNav from '../components/tag-nav/index.vue';
 
@@ -132,10 +139,12 @@ const formDetailData = ref({
   key: '',
   type: 1,
 }); //  详情组件源传参
+const formFolderData = ref<{ vod_id?: string; vod_name?: string; vod_tag?: string }>({}); // 网盘文件夹组件源传参
 const isVisible = reactive({
   toolbar: false, // 筛选
   hot: false,
   detail: false,
+  folder: false,
   loadClass: false,
   infiniteLoading: false,
   gridList: false,
@@ -721,6 +730,7 @@ const parseMsearchKeyword = (id: string, fallback = '') => {
 // 播放
 const playEvent = async (item) => {
   const rawId = String(item?.vod_id || '');
+  const isFolder = String(item?.vod_tag || '') === 'folder';
   if (rawId.startsWith('msearch:')) {
     // TV 同类：不取详情，用榜单片名填搜索框并聚搜
     const kw = String(item?.vod_name || '').trim() || parseMsearchKeyword(rawId);
@@ -770,6 +780,13 @@ const playEvent = async (item) => {
       throw new Error(`invalid detail item: site=${site?.key || site?.name || '?'} id=${item?.vod_id}`);
     }
 
+    // 网盘文件夹：进目录浏览弹窗（列文件名，可继续下钻），不能当影片直接开播放窗
+    if (isFolder) {
+      formFolderData.value = item;
+      isVisible.folder = true;
+      return;
+    }
+
     const playerMode = storePlayer.getSetting.playerMode;
     if (playerMode.type === 'custom') {
       formDetailData.value = item;
@@ -792,6 +809,12 @@ const playEvent = async (item) => {
   } finally {
     isVisible.loading = false;
   }
+};
+
+// 目录浏览里点到文件：走正常播放流程（playerMode 非 custom 直接开播放窗，custom 才进详情选集）
+const onFolderPlay = (info) => {
+  isVisible.folder = false;
+  playEvent(info);
 };
 
 emitter.on('searchFilm', (data: any) => {
