@@ -415,7 +415,7 @@ const putHistory = async (): Promise<void> => {
   };
 
   const response = await putHistoryData(dataHistory.value?.id, doc);
-  dataHistory.value = response;
+  if (response) dataHistory.value = response;
 };
 
 // 获取播放源及剧集

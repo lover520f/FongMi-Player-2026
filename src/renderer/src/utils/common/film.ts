@@ -113,37 +113,17 @@ const fetchHistoryData = async (relateId: string, videoId: number) => {
   }
 };
 
-const putHistoryData = async (id: any = null, doc: any = {}): Promise<void> => {
+const putHistoryData = async (id: any = null, doc: any = {}): Promise<any> => {
   // console.log('[film_common][putHistoryData][start]历史更新流程开启');
-  let data: any = {
-    id: null,
-    date: 1715018234,
-    type: 'film',
-    relateId: '',
-    siteSource: '',
-    playEnd: false,
-    videoId: '',
-    videoImage: '',
-    videoName: '',
-    videoIndex: '',
-    watchTime: 0,
-    duration: null,
-    skipTimeInStart: 30,
-    skipTimeInEnd: 30,
-  };
-
   try {
+    // 失败返回null,由调用方决定是否覆盖本地状态,避免用默认数据冲掉已有进度
     if (id) {
-      data = await updateHistory(id, doc);
-    } else {
-      data = await addHistory(doc);
+      return await updateHistory(id, doc);
     }
-    // console.log(`[film_common][putHistoryData][return]`, data);
+    return await addHistory(doc);
   } catch (err) {
-    console.log(`[film_common][putHistoryData][error]`, err);
-  } finally {
-    // console.log(`[film_common][putHistoryData][end]历史更新流程结束`);
-    return data;
+    console.error(`[film_common][putHistoryData][error]`, err);
+    return null;
   }
 };
 

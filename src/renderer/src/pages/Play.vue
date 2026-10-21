@@ -789,26 +789,38 @@ const fetchHistory = async (): Promise<void> => {
 };
 
 // 更新历史
+let historySaving = false;
 const putHistory = async (): Promise<void> => {
-  const doc = {
-    date: moment().unix(),
-    type: 'film',
-    relateId: ext.value.site.id,
-    siteSource: active.flimSource,
-    playEnd: VIDEO_PROCESS_DOC.playEnd,
-    videoId: info.value["vod_id"],
-    videoImage: info.value["vod_pic"],
-    videoName: info.value["vod_name"],
-    videoIndex: active.filmIndex,
-    watchTime: VIDEO_PROCESS_DOC.watchTime,
-    duration: VIDEO_PROCESS_DOC.duration,
-    skipTimeInStart: skipConfig.value.skipTimeInStart,
-    skipTimeInEnd: skipConfig.value.skipTimeInEnd
-  };
+  if (historySaving) return; // 防止并发时重复addHistory产生多条记录
+  historySaving = true;
+  try {
+    const doc = {
+      date: moment().unix(),
+      type: 'film',
+      relateId: ext.value.site.id,
+      siteSource: active.flimSource,
+      playEnd: VIDEO_PROCESS_DOC.playEnd,
+      videoId: info.value["vod_id"],
+      videoImage: info.value["vod_pic"],
+      videoName: info.value["vod_name"],
+      videoIndex: active.filmIndex,
+      watchTime: VIDEO_PROCESS_DOC.watchTime,
+      duration: VIDEO_PROCESS_DOC.duration,
+      skipTimeInStart: skipConfig.value.skipTimeInStart,
+      skipTimeInEnd: skipConfig.value.skipTimeInEnd
+    };
 
-  const response = await putHistoryData(dataHistory.value?.id, doc);
-  dataHistory.value = response;
+    const response = await putHistoryData(dataHistory.value?.id, doc);
+    if (response) dataHistory.value = response;
+  } finally {
+    historySaving = false;
+  }
 };
+
+// 进度保存节流,避免每个timeupdate都发一次请求
+const putHistoryThrottled = _.throttle(() => {
+  putHistory();
+}, 250);
 
 const filmPlayAndHandleResponse = async (snifferMode, url, site, analyze, flimSource, skipAd) => {
   MessagePlugin.info(t('pages.player.message.play'));
@@ -1016,8 +1028,10 @@ const timerUpdatePlayProcess = async () => {
   if (player.value) await offPlayerTimeUpdate(player.value, playerMode.type);
 
   const isLast = () => {
+    const list = season.value?.[siteSource];
+    if (!list || index < 0) return true; // 无选集数据或不在列表中,停止连播
     if (isVisible.reverseOrder) {
-      return season.value[siteSource].length === index + 1;
+      return list.length === index + 1;
     } else {
       return index === 0;
     }
@@ -1043,12 +1057,12 @@ const timerUpdatePlayProcess = async () => {
     VIDEO_PROCESS_DOC.duration = duration;
 
     const watchTime = set.value.skipStartEnd ? currentTime + skipConfig.value.skipTimeInEnd : currentTime;
-    if (watchTime >= duration && duration !== 0) {
+    if (duration && watchTime >= duration) {
       if (!switching) autoPlayNext();
-    } else putHistory();
+    } else putHistoryThrottled();
 
     // 预加载下一步链接 提前30秒预加载
-    if (watchTime + 30 >= duration && duration !== 0) {
+    if (duration && watchTime + 30 >= duration) {
       if (!isLast() && !tmp.preloadLoading && set.value.preloadNext) {
         try {
           tmp.preloadLoading = true;
@@ -1061,7 +1075,7 @@ const timerUpdatePlayProcess = async () => {
   };
 
   await playerTimeUpdate(player.value, playerMode.type, ({ currentTime, duration }) => {
-    index = season.value[siteSource].indexOf(active.filmIndex);
+    index = season.value?.[siteSource]?.indexOf(active.filmIndex) ?? -1;
     onTimeUpdate(currentTime, duration);
   });
 };
