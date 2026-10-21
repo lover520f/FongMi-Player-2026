@@ -41,6 +41,11 @@ export default {
     noRecommendSearch: '该源未找到相关推荐,不执行本次切换',
     next: '请稍候,正在切换下集',
   },
+  error: {
+    title: '播放失败',
+    desc: '资源可能已失效,可尝试重试或切换线路',
+    retry: '重试',
+  },
   placeholder: {
     analyze: '解析接口',
   },

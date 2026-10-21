@@ -7,6 +7,7 @@ const publicListener = {
   sendDanmu: null as any,
   playrateUpdate: null as any,
   volumeUpdate: null as any,
+  error: null as any,
 };
 
 const options = {
@@ -327,6 +328,18 @@ const offTimeUpdate = (player: CustomDPlayer) => {
   publicListener.timeUpdate = null;
 };
 
+const onError = (player: any, callback: any) => {
+  if (!callback) return;
+  publicListener.error = callback;
+  player.on('error', publicListener.error);
+};
+
+const offError = (player: any) => {
+  if (!publicListener.error) return;
+  player.off('error', publicListener.error);
+  publicListener.error = null;
+};
+
 const toggle = (player: DPlayer) => {
   player.toggle();
 };
@@ -351,6 +364,8 @@ export {
   onTimeUpdate,
   offBarrage,
   offTimeUpdate,
+  onError,
+  offError,
   toggle,
   volume,
 };

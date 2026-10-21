@@ -248,6 +248,18 @@ const offPlayerTimeUpdate = async (player: any, playerMode: string) => {
   return offTimeUpdate(player);
 };
 
+const playerOnError = async (player: any, playerMode: string, callback: any) => {
+  const playerModule = await loadPlayerMethod(playerMode);
+  const { onError } = playerModule;
+  if (onError) return onError(player, callback);
+};
+
+const offPlayerError = async (player: any, playerMode: string) => {
+  const playerModule = await loadPlayerMethod(playerMode);
+  const { offError } = playerModule;
+  if (offError) return offError(player);
+};
+
 export {
   playerBarrage,
   playerCreate,
@@ -256,6 +268,10 @@ export {
   playerSeek,
   playerPause,
   playerTimeUpdate,
+  playerOnError,
   offPlayerBarrage,
   offPlayerTimeUpdate,
+  offPlayerError,
 };
+
+export { setStreamErrorNotify } from './playerModule/components';

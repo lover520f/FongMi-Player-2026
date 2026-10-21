@@ -29,12 +29,31 @@ const publicOptions = {
   shaka: {},
 };
 
+type StreamErrorInfo = { engine: string; error: any };
+
+let streamErrorNotify: ((info: StreamErrorInfo) => void) | null = null;
+
+const setStreamErrorNotify = (fn: ((info: StreamErrorInfo) => void) | null) => {
+  streamErrorNotify = fn;
+};
+
+const emitStreamError = (engine: string, error: any) => {
+  try {
+    streamErrorNotify?.({ engine, error });
+  } catch {
+    /* noop */
+  }
+};
+
 const publicStream = {
   create: {
     customHls: (video: HTMLVideoElement, url: string): Hls | null => {
       if (Hls.isSupported()) {
         const options = publicOptions.hls || {};
         const hls = new Hls(options);
+        hls.on(Hls.Events.ERROR, (_event: string, data: any) => {
+          if (data?.fatal) emitStreamError('hls', data);
+        });
         hls.loadSource(url);
         hls.attachMedia(video);
         return hls;
@@ -51,6 +70,9 @@ const publicStream = {
           }),
           publicOptions.flv.optionalConfig || {},
         );
+        flvPlayer.on(flvjs.Events.ERROR, (errorType: string, errorDetail: string, errorInfo?: any) => {
+          emitStreamError('flv', { errorType, errorDetail, errorInfo });
+        });
         flvPlayer.attachMediaElement(video);
         flvPlayer.load();
         return flvPlayer;
@@ -64,6 +86,9 @@ const publicStream = {
         const options = publicOptions.webtorrent;
         const client = new WebTorrent(options);
         const torrentId = url;
+        client.on('error', (err: any) => {
+          emitStreamError('torrent', err);
+        });
         video.src = '';
         video.preload = 'metadata';
         client.add(torrentId, (torrent) => {
@@ -87,7 +112,14 @@ const publicStream = {
       // return dashjsPlayer;
       if (shaka.Player.isBrowserSupported()) {
         const playerShaka = new shaka.Player(video);
-        playerShaka.load(url);
+        const onError = (err: any) => {
+          const severity = shaka?.util?.Error?.Severity;
+          if (!severity || err?.severity === severity.CRITICAL) emitStreamError('dash', err);
+        };
+        playerShaka.onError(onError);
+        playerShaka.load(url).catch((err: any) => {
+          emitStreamError('dash', err);
+        });
         const options = publicOptions.dash;
         playerShaka.configure(options);
         return playerShaka;
@@ -102,6 +134,9 @@ const publicStream = {
           type: 'mse', // could also be mpegts, m2ts, flv
           isLive: false,
           url,
+        });
+        playerMpegts.on(MpegTs.Events.ERROR, (errorType: string, errorDetail: string) => {
+          emitStreamError('mpegts', { errorType, errorDetail });
         });
         playerMpegts.attachMediaElement(video);
         playerMpegts.load();
@@ -210,4 +245,4 @@ const publicStream = {
   },
 };
 
-export { publicStream };
+export { publicStream, setStreamErrorNotify };

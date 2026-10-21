@@ -8,6 +8,7 @@ const publicListener = {
   sendDanmu: null as any,
   playrateUpdate: null as any,
   volumeUpdate: null as any,
+  error: null as any,
 };
 
 const elementDeal = {
@@ -279,6 +280,18 @@ const offTimeUpdate = (player: NPlayer) => {
   publicListener.timeUpdate = null;
 };
 
+const onError = (player: NPlayer, callback: any) => {
+  if (!callback) return;
+  publicListener.error = () => callback({ engine: 'nplayer' });
+  player.on(NPlayerEvent.ERROR, publicListener.error);
+};
+
+const offError = (player: NPlayer) => {
+  if (!publicListener.error) return;
+  player.off(NPlayerEvent.ERROR, publicListener.error);
+  publicListener.error = null;
+};
+
 const toggle = (player: NPlayer) => {
   player.toggle();
 };
@@ -303,6 +316,8 @@ export {
   onTimeUpdate,
   offBarrage,
   offTimeUpdate,
+  onError,
+  offError,
   toggle,
   volume,
 };

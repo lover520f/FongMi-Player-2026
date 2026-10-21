@@ -7,6 +7,7 @@ const publicListener = {
   timeUpdate: null as any,
   sendDanmu: null as any,
   playrateUpdate: null as any,
+  error: null as any,
 };
 
 const options: any = {
@@ -198,6 +199,18 @@ const offTimeUpdate = (player: Artplayer) => {
   publicListener.timeUpdate = null;
 };
 
+const onError = (player: Artplayer, callback: any) => {
+  if (!callback) return;
+  publicListener.error = () => callback({ engine: 'artplayer' });
+  player.on('video:error', publicListener.error);
+};
+
+const offError = (player: Artplayer) => {
+  if (!publicListener.error) return;
+  player.off('video:error', publicListener.error);
+  publicListener.error = null;
+};
+
 const speed = (player: Artplayer, speed: number) => {
   player.once('ready', () => {
     player.playbackRate = speed;
@@ -228,6 +241,8 @@ export {
   onTimeUpdate,
   offBarrage,
   offTimeUpdate,
+  onError,
+  offError,
   toggle,
   volume,
 };

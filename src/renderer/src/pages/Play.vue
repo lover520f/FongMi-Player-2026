@@ -72,6 +72,15 @@
             <div class="player-media">
               <div id="mse" class="player"></div>
             </div>
+            <div v-if="isVisible.playError" class="player-error-mask">
+              <div class="player-error-content">
+                <p class="player-error-msg">{{ playErrorMsg }}</p>
+                <p class="player-error-desc">{{ $t('pages.player.error.desc') }}</p>
+                <t-button theme="primary" variant="outline" @click="retryPlay">
+                  {{ $t('pages.player.error.retry') }}
+                </t-button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="btn-box dock-show" @click="isVisible.aside = !isVisible.aside">
@@ -387,7 +396,7 @@ import { computed, onMounted, ref, reactive, shallowRef } from 'vue';
 
 import { fetchChannelList } from '@/api/iptv';
 import { checkUrlIpv6, getLocalStorage } from '@/utils/tool';
-import { playerBarrage, playerCreate, playerDestroy, playerNext, playerSeek, playerPause, playerTimeUpdate, offPlayerTimeUpdate, offPlayerBarrage } from '@/utils/common/player';
+import { playerBarrage, playerCreate, playerDestroy, playerNext, playerSeek, playerPause, playerTimeUpdate, offPlayerTimeUpdate, offPlayerBarrage, playerOnError, offPlayerError, setStreamErrorNotify } from '@/utils/common/player';
 import {
   fetchBingeData,
   putBingeData,
@@ -524,7 +533,8 @@ const isVisible = reactive({
   binge: false,
   aside: false,
   reverseOrder: true,
-  official: false
+  official: false,
+  playError: false
 })
 
 const iptvConfig = ref({
@@ -549,7 +559,52 @@ const renderLoading = () => {
   );
 };
 
+// 播放失败兜底
+const playErrorMsg = ref('');
+let playErrorTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 播放器/流引擎错误：延迟兜底展示,期间恢复播放则取消
+const handlePlayerError = () => {
+  if (playErrorTimer) {
+    clearTimeout(playErrorTimer);
+    playErrorTimer = null;
+  }
+  if (isVisible.playError) return;
+  playErrorMsg.value = t('pages.player.error.title');
+  playErrorTimer = setTimeout(() => {
+    isVisible.playError = true;
+    playErrorTimer = null;
+  }, 3000);
+};
+
+// 取消播放失败状态
+const cancelPlayError = () => {
+  if (playErrorTimer) {
+    clearTimeout(playErrorTimer);
+    playErrorTimer = null;
+  }
+  isVisible.playError = false;
+};
+
+// 展示播放失败状态
+const notifyPlayError = (message?: string, immediate: boolean = false) => {
+  if (playErrorTimer) {
+    clearTimeout(playErrorTimer);
+    playErrorTimer = null;
+  }
+  playErrorMsg.value = message || t('pages.player.error.title');
+  if (immediate) {
+    isVisible.playError = true;
+    return;
+  }
+  playErrorTimer = setTimeout(() => {
+    isVisible.playError = true;
+    playErrorTimer = null;
+  }, 3000);
+};
+
 onMounted(() => {
+  setStreamErrorNotify(handlePlayerError);
   initPlayer();
   minMaxEvent();
 });
@@ -557,6 +612,7 @@ onMounted(() => {
 // 加载播放器
 const createPlayer = async (url: string, videoType: string = '') => {
   tmp.url = url;
+  cancelPlayError();
   const { playerMode } = set.value;
 
   if (reRegisterTimer) {
@@ -570,7 +626,26 @@ const createPlayer = async (url: string, videoType: string = '') => {
     dplayer: document.getElementById('mse'),
     nplayer: '#mse',
   };
-  player.value = await playerCreate(url, type.value, containers[playerMode.type], playerMode.type, videoType) as any;
+
+  try {
+    player.value = await playerCreate(url, type.value, containers[playerMode.type], playerMode.type, videoType) as any;
+  } catch (err) {
+    console.error('[player][create]', err);
+    notifyPlayError(undefined, true);
+    return;
+  }
+
+  try {
+    await playerOnError(player.value, playerMode.type, handlePlayerError);
+    if (type.value !== 'film') {
+      await playerTimeUpdate(player.value, playerMode.type, ({ currentTime }) => {
+        if (currentTime) cancelPlayError();
+      });
+    }
+  } catch (err) {
+    console.error('[player][listen]', err);
+  }
+
   if (tmp.skipTime) playerSeek(player.value, playerMode.type, tmp.skipTime);
 
   if (type.value === 'film') {
@@ -601,11 +676,16 @@ const createPlayer = async (url: string, videoType: string = '') => {
 };
 
 // 摧毁播放器
-const destroyPlayer = () => {
-  if (player.value) {
-    const { playerMode } = set.value;
-
-    playerDestroy(player.value, playerMode.type);
+const destroyPlayer = async () => {
+  if (!player.value) return;
+  const { playerMode } = set.value;
+  try {
+    await offPlayerError(player.value, playerMode.type);
+    await offPlayerTimeUpdate(player.value, playerMode.type);
+    await playerDestroy(player.value, playerMode.type);
+  } catch (err) {
+    console.error('[player][destroy]', err);
+  } finally {
     player.value = null;
   }
 };
@@ -670,22 +750,28 @@ const switchLineEvent = async (id: string) => {
 const switchAnalyzeEvent = async (id: string) => {
   active.analyzeId = id;
   if (active.filmIndex) {
-    const { site } = ext.value;
-    const { snifferMode, skipAd } = set.value;
+    cancelPlayError();
+    try {
+      const { site } = ext.value;
+      const { snifferMode, skipAd } = set.value;
 
-    let { url } = formatIndex(active.filmIndex);
-    url = decodeURIComponent(url);
-    tmp.url = tmp.sourceUrl = url;
+      let { url } = formatIndex(active.filmIndex);
+      url = decodeURIComponent(url);
+      tmp.url = tmp.sourceUrl = url;
 
-    const analyze = snifferAnalyze.value;
-    const response = await filmPlayAndHandleResponse(snifferMode, url, site, analyze, active.flimSource, skipAd);
-    if (response?.url) {
-      if (player.value) {
-        const { playerMode } = set.value;
-        playerNext(player.value, playerMode.type, { url: response!.url, mediaType: response!.mediaType! || '' });
-      } else {
-        createPlayer(response!.url, response!.mediaType!);
-      }
+      const analyze = snifferAnalyze.value;
+      const response = await filmPlayAndHandleResponse(snifferMode, url, site, analyze, active.flimSource, skipAd);
+      if (response?.url) {
+        if (player.value) {
+          const { playerMode } = set.value;
+          playerNext(player.value, playerMode.type, { url: response!.url, mediaType: response!.mediaType! || '' });
+        } else {
+          createPlayer(response!.url, response!.mediaType!);
+        }
+      } else notifyPlayError(t('pages.player.message.sniiferError'), true);
+    } catch (err) {
+      console.error('[player][analyze]', err);
+      notifyPlayError(undefined, true);
     }
   }
 };
@@ -778,24 +864,37 @@ const initFilmPlayer = async (isFirst) => {
   const response = await filmPlayAndHandleResponse(snifferMode, url, site, analyze, active.flimSource, skipAd);
   if (response?.url) {
     await createPlayer(response!.url, response!.mediaType! || '');
-  }
+  } else notifyPlayError(t('pages.player.message.sniiferError'), true);
 };
 
 // 初始化播放器
 const initPlayer = async (isFirst = false) => {
-  switch (type.value) {
-    case 'iptv':
-      await initIptvPlayer();
-      break;
-    case 'film':
-      await initFilmPlayer(isFirst);
-      break;
-    case 'drive':
-      await initCloudPlayer();
-      break;
-    default:
-      break;
-  };
+  cancelPlayError();
+  try {
+    switch (type.value) {
+      case 'iptv':
+        await initIptvPlayer();
+        break;
+      case 'film':
+        await initFilmPlayer(isFirst);
+        break;
+      case 'drive':
+        await initCloudPlayer();
+        break;
+      default:
+        break;
+    };
+  } catch (err) {
+    console.error('[player][init]', err);
+    notifyPlayError(undefined, true);
+  }
+};
+
+// 重试播放
+const retryPlay = async () => {
+  cancelPlayError();
+  await destroyPlayer();
+  await initPlayer();
 };
 
 // 获取播放源及剧集
@@ -815,6 +914,7 @@ const getDetailInfo = async (): Promise<void> => {
 const changeEvent = async (item) => {
   if (switching) return;
   switching = true;
+  cancelPlayError();
   if (reRegisterTimer) {
     clearTimeout(reRegisterTimer);
     reRegisterTimer = null;
@@ -873,6 +973,9 @@ const changeEvent = async (item) => {
     tmp.preloadIndex = '';
     tmp.sourceUrl = tmp.preloadSourceUrl;
     tmp.preloadSourceUrl = '';
+  } catch (err) {
+    console.error('[player][change]', err);
+    notifyPlayError(undefined, true);
   } finally {
     switching = false;
   }
@@ -935,6 +1038,7 @@ const timerUpdatePlayProcess = async () => {
   };
 
   const onTimeUpdate = async (currentTime: number, duration: number) => {
+    if (currentTime) cancelPlayError();
     VIDEO_PROCESS_DOC.watchTime = currentTime;
     VIDEO_PROCESS_DOC.duration = duration;
 
@@ -1191,6 +1295,7 @@ const getEpgList = async (url: string, name: string, date: string): Promise<void
 
 // 切换channel
 const changeChannelEvent = async (item) => {
+  cancelPlayError();
   store.updateConfig({
     type: 'iptv',
     data: { info: item, ext: ext.value }
@@ -1233,25 +1338,31 @@ const spiderInit = async () => {
 
 // 切换cloud
 const changeDriveEvent = async (item) => {
-  await spiderInit();
-  const res = JSON.parse(await spider.value.file(item.path));
-  store.updateConfig({
-    type: 'drive',
-    data: {
-      info: {
-        name: res.name,
-        url: res.url,
-        vod_pic: res.thumb
-      }
-    },
-  });
-  info.value = res;
-  const url = info.value["url"];
-  if (player.value) {
-    const { playerMode } = set.value;
-    playerNext(player.value, playerMode.type, { url, mediaType: '' });
-  } else {
-    createPlayer(url);
+  cancelPlayError();
+  try {
+    await spiderInit();
+    const res = JSON.parse(await spider.value.file(item.path));
+    store.updateConfig({
+      type: 'drive',
+      data: {
+        info: {
+          name: res.name,
+          url: res.url,
+          vod_pic: res.thumb
+        }
+      },
+    });
+    info.value = res;
+    const url = info.value["url"];
+    if (player.value) {
+      const { playerMode } = set.value;
+      playerNext(player.value, playerMode.type, { url, mediaType: '' });
+    } else {
+      createPlayer(url);
+    }
+  } catch (err) {
+    console.error('[player][drive]', err);
+    notifyPlayError(undefined, true);
   }
 };
 
@@ -1452,6 +1563,37 @@ window.electron.ipcRenderer.on('destroy-playerWindow', () => {
               width: 100%;
               height: 100%;
               position: relative;
+            }
+          }
+
+          .player-error-mask {
+            position: absolute;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.72);
+
+            .player-error-content {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 8px;
+              padding: 24px;
+              text-align: center;
+
+              .player-error-msg {
+                color: #fbfbfb;
+                font-size: 16px;
+                font-weight: 500;
+              }
+
+              .player-error-desc {
+                color: rgba(251, 251, 251, 0.6);
+                font-size: 13px;
+                margin-bottom: 8px;
+              }
             }
           }
         }

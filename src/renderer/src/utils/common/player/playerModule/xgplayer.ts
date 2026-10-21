@@ -16,6 +16,7 @@ const publicListener = {
   sendDanmu: null as any,
   playrateUpdate: null as any,
   volumeUpdate: null as any,
+  error: null as any,
 };
 
 // 西瓜、火山公共部分参数
@@ -223,6 +224,20 @@ const offTimeUpdate = (player: XgPlayer) => {
   publicListener.timeUpdate = null;
 };
 
+const onError = (player: XgPlayer, callback: any) => {
+  if (!callback) return;
+  publicListener.error = () => callback({ engine: 'xgplayer' });
+  player.on(Events.ERROR, publicListener.error);
+  player.on(Events.SOURCE_ERROR, publicListener.error);
+};
+
+const offError = (player: XgPlayer) => {
+  if (!publicListener.error) return;
+  player.off(Events.ERROR, publicListener.error);
+  player.off(Events.SOURCE_ERROR, publicListener.error);
+  publicListener.error = null;
+};
+
 const toggle = (player: XgPlayer) => {
   if (player.paused) player.play();
   else player.pause();
@@ -248,6 +263,8 @@ export {
   onTimeUpdate,
   offBarrage,
   offTimeUpdate,
+  onError,
+  offError,
   toggle,
   volume,
 };

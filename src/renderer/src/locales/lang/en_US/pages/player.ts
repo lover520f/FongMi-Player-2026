@@ -41,6 +41,11 @@ export default {
     noRecommendSearch: 'No recommendation found for this source,  Switch is not performed',
     next: 'One moment, Switching next',
   },
+  error: {
+    title: 'Playback failed',
+    desc: 'The source may be unavailable, try again or switch the line',
+    retry: 'Retry',
+  },
   placeholder: {
     analyze: 'AnalyzeApi',
   },
