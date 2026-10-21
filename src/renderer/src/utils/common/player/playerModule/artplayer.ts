@@ -164,6 +164,11 @@ const playNext = (player: Artplayer, options: any) => {
 };
 
 const seek = (player: Artplayer, time: number) => {
+  // 已ready可直接seek,否则监听ready,避免事件先于监听触发导致seek丢失
+  if (player.isReady) {
+    player.seek = time;
+    return;
+  }
   player.once('ready', () => {
     player.seek = time;
   });

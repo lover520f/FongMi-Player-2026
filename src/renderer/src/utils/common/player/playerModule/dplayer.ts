@@ -293,7 +293,14 @@ const playNext = (player: DPlayer, options: any) => {
 };
 
 const seek = (player: any, time: number) => {
-  player.seek(time);
+  // 元素已加载可直接seek,否则等canplay再seek,避免数据未就绪时seek丢失
+  if (player?.video?.readyState >= 2) {
+    player.seek(time);
+    return;
+  }
+  player.once('canplay', () => {
+    if (player?.video) player.seek(time);
+  });
 };
 const speed = (player: DPlayer, time: number) => {
   player.speed(time);

@@ -241,6 +241,11 @@ const playNext = (player: any, options: any) => {
   if (player?.danmaku) player.danmaku.clearScreen();
 };
 const seek = (player: NPlayer, time: number) => {
+  // 已加载可直接seek,否则监听CANPLAY,避免事件先于监听触发导致seek丢失
+  if (player.loaded) {
+    player.seek(time);
+    return;
+  }
   player.once(NPlayerEvent.CANPLAY, () => {
     player.seek(time);
   });

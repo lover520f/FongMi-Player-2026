@@ -190,6 +190,12 @@ const playNext = (player: XgPlayer, options: any) => {
 };
 
 const seek = (player: XgPlayer, time: number) => {
+  // 数据已就绪可直接seek,否则监听LOADED_DATA,避免事件先于监听触发导致seek丢失
+  const media = player.media as HTMLVideoElement | null;
+  if (media && media.readyState >= 2) {
+    player.seek(time);
+    return;
+  }
   player.once(Events.LOADED_DATA, () => {
     player.seek(time);
   });
