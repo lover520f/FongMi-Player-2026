@@ -1024,7 +1024,7 @@ const changeEvent = async (item) => {
 
 // 提前获取下一集链接
 const preloadNext = async (item: string) => {
-  const url = formatIndex(item).url;
+  const url = decodeURIComponent(formatIndex(item).url);
 
   tmp.preloadSourceUrl = url;
   tmp.preloadIndex = item;
@@ -1036,9 +1036,9 @@ const preloadNext = async (item: string) => {
   const response = await playHelper(snifferMode, url, site, analyze, flimSource, skipAd);
   tmp.preloadNext = { ...response };
 
-  if (response?.url) { // 预加载弹幕
+  if (response?.url) { // 预加载弹幕 用下一集自己的链接,不能取当前集的
     const options = set.value.barrage;
-    tmp.preloadBarrage = await fetchBarrage(tmp.sourceUrl, options, { flimSource, filmIndex: item });
+    tmp.preloadBarrage = await fetchBarrage(url, options, { flimSource, filmIndex: item });
   };
 };
 
@@ -1096,7 +1096,14 @@ const timerUpdatePlayProcess = async () => {
         try {
           tmp.preloadLoading = true;
           await preloadNext(isVisible.reverseOrder ? season.value[siteSource][index + 1] : season.value[siteSource][index - 1]);
-        } catch (err) { };
+        } catch (err) {
+          console.error('[player][preload]', err);
+          tmp.preloadLoading = false; // 失败复位,否则后续无法再预加载
+          tmp.preloadNext = {};
+          tmp.preloadIndex = '';
+          tmp.preloadSourceUrl = '';
+          tmp.preloadBarrage = [];
+        };
       };
     };
 
