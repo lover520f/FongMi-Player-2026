@@ -1354,7 +1354,7 @@ const changeChannelEvent = async (item) => {
   const url = info.value["url"];
   if (player.value) {
     const { playerMode } = set.value;
-    playerNext(player.value, playerMode.type, { url, mediaType: '' });
+    await playerNext(player.value, playerMode.type, { url, mediaType: '' });
   } else {
     createPlayer(url);
   }
@@ -1406,7 +1406,7 @@ const changeDriveEvent = async (item) => {
     const url = info.value["url"];
     if (player.value) {
       const { playerMode } = set.value;
-      playerNext(player.value, playerMode.type, { url, mediaType: '' });
+      await playerNext(player.value, playerMode.type, { url, mediaType: '' });
     } else {
       createPlayer(url);
     }

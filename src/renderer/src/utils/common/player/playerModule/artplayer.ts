@@ -154,6 +154,12 @@ const play = (player: Artplayer) => {
 
 const playNext = (player: Artplayer, options: any) => {
   // player.switch = options.url;
+  // 换片销毁旧流,避免切换类型/线路后旧实例残留继续拉流;置空防止customType重建时二次销毁
+  if (player.hls) publicStream.destroy.customHls(player);
+  if (player.flv) publicStream.destroy.customFlv(player);
+  if (player.mpd) publicStream.destroy.customDash(player);
+  if (player.torrent) publicStream.destroy.customTorrent(player);
+  player.hls = player.flv = player.mpd = player.torrent = null;
   player.switchUrl(options.url);
   if (player.plugins?.artplayerPluginDanmuku) {
     player.plugins.artplayerPluginDanmuku.config({

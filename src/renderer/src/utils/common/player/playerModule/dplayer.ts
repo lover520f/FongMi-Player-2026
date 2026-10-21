@@ -282,9 +282,12 @@ const play = (player: DPlayer) => {
 
 const playNext = (player: DPlayer, options: any) => {
   const { playbackRate } = player.video;
-  if (options.type === 'customFlv') {
-    publicStream.destroy.customFlv(player);
-  } // 重要
+  // 换片销毁旧流,避免切换类型/线路后旧实例残留继续拉流;置空防止switchVideo重建customType时二次销毁
+  if (player.hls) publicStream.destroy.customHls(player);
+  if (player.flv) publicStream.destroy.customFlv(player);
+  if (player.mpd) publicStream.destroy.customDash(player);
+  if (player.torrent) publicStream.destroy.customTorrent(player);
+  player.hls = player.flv = player.mpd = player.torrent = null;
   player.switchVideo({ ...options });
   player.options.video.url = options.url;
   if (player?.danmaku) player.danmaku.clear();

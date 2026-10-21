@@ -218,6 +218,7 @@ const playNext = (player: any, options: any) => {
   if (player?.flv) publicStream.destroy.customFlv(player);
   if (player?.mpd) publicStream.destroy.customDash(player);
   if (player?.torrent) publicStream.destroy.customTorrent(player);
+  player.hls = player.flv = player.mpd = player.torrent = null;
 
   switch (options.type) {
     case 'customMp4':
