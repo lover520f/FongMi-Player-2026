@@ -392,7 +392,7 @@ import {
 } from 'tdesign-icons-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { computed, onMounted, ref, reactive, shallowRef } from 'vue';
+import { computed, onMounted, ref, reactive, shallowRef, watch } from 'vue';
 
 import { fetchChannelList } from '@/api/iptv';
 import { checkUrlIpv6, getLocalStorage } from '@/utils/tool';
@@ -746,12 +746,37 @@ const switchLineEvent = async (id: string) => {
   active.flimSource = id;
 };
 
+// 切换播放源:按列表位置重排集数索引后自动重新播放,保持当前进度
+watch(
+  () => active.flimSource,
+  (newSource, oldSource) => {
+    if (!oldSource || !newSource || newSource === oldSource) return;
+    if (type.value !== 'film' || switching || !player.value) return;
+
+    const oldList: string[] = season.value?.[oldSource];
+    const newList: string[] = season.value?.[newSource];
+    if (!oldList?.length || !newList?.length) return;
+
+    let pos = oldList.indexOf(active.filmIndex);
+    if (pos < 0) pos = 0;
+    const episode = newList[Math.min(pos, newList.length - 1)];
+    if (episode && episode !== active.filmIndex) changeEvent(episode);
+  }
+);
+
 // 切换解析接口
 const switchAnalyzeEvent = async (id: string) => {
   active.analyzeId = id;
   if (active.filmIndex) {
     cancelPlayError();
     try {
+      // 恢复当前进度
+      if (set.value.skipStartEnd && VIDEO_PROCESS_DOC.watchTime < skipConfig.value.skipTimeInStart) {
+        tmp.skipTime = skipConfig.value.skipTimeInStart;
+      } else {
+        tmp.skipTime = VIDEO_PROCESS_DOC.watchTime || 0;
+      }
+
       const { site } = ext.value;
       const { snifferMode, skipAd } = set.value;
 
@@ -764,7 +789,17 @@ const switchAnalyzeEvent = async (id: string) => {
       if (response?.url) {
         if (player.value) {
           const { playerMode } = set.value;
-          playerNext(player.value, playerMode.type, { url: response!.url, mediaType: response!.mediaType! || '' });
+          if (reRegisterTimer) {
+            clearTimeout(reRegisterTimer);
+            reRegisterTimer = null;
+          }
+          await offPlayerTimeUpdate(player.value, playerMode.type);
+          await playerNext(player.value, playerMode.type, { url: response!.url, mediaType: response!.mediaType! || '' });
+          if (tmp.skipTime) await playerSeek(player.value, playerMode.type, tmp.skipTime);
+          reRegisterTimer = setTimeout(async () => {
+            reRegisterTimer = null;
+            await timerUpdatePlayProcess();
+          }, 1500);
         } else {
           createPlayer(response!.url, response!.mediaType!);
         }
@@ -934,18 +969,12 @@ const changeEvent = async (item) => {
   try {
     active.filmIndex = item;
 
-    // 当前源dataHistory.value.siteSource 选择源active.flimSource；当前集dataHistory.value.videoIndex 选择源index
-    // 1. 同源 不同集 变   return true
-    // 2. 同源 同集 不变   return true
-    // 3. 不同源 不同集 变 return true
-    // 4. 不同源 同集 不变 return true
-    // 待优化 不同源的index不同，要重新索引  但是 综艺不对应
-    if (dataHistory.value["siteSource"] === active.flimSource) {  // 同源
-      if (formatIndex(dataHistory.value["videoIndex"]).index !== formatIndex(active.filmIndex).index) {
-        VIDEO_PROCESS_DOC.watchTime = 0;
-        VIDEO_PROCESS_DOC.playEnd = false;
-      };
-    } else if (formatIndex(dataHistory.value["videoIndex"]).index !== formatIndex(active.filmIndex).index) { // 不同源
+    // 换源/换集按选集列表位置比较,跨源集数命名不一致时也能正确判断是否继续当前进度
+    const historyList: string[] = season.value?.[dataHistory.value["siteSource"]] || [];
+    const currentList: string[] = season.value?.[active.flimSource] || [];
+    const posHistory = historyList.indexOf(dataHistory.value["videoIndex"]);
+    const posCurrent = currentList.indexOf(item);
+    if (posHistory !== posCurrent) {
       VIDEO_PROCESS_DOC.watchTime = 0;
       VIDEO_PROCESS_DOC.playEnd = false;
     };
