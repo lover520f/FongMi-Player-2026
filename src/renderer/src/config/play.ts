@@ -12,6 +12,7 @@ export default {
     },
     skipStartEnd: false,
     preloadNext: false,
+    autoNext: true,
     skipAd: false,
     barrage: {
       url: '',

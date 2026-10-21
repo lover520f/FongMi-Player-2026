@@ -46,6 +46,10 @@
                   <t-switch v-model="set.preloadNext" />
                 </div>
                 <div class="setting-item-warp">
+                  <span>{{ $t('pages.player.setting.autoPlayNext') }}</span>
+                  <t-switch v-model="set.autoNext" />
+                </div>
+                <div class="setting-item-warp">
                   <span>{{ $t('pages.player.setting.skipAd') }}</span>
                   <t-switch v-model="set.skipAd" />
                 </div>
@@ -957,9 +961,9 @@ const getDetailInfo = async (): Promise<void> => {
   else season.value = reverseOrderHelper('negative', formattedSeason);
 };
 
-// 切换选集
-const changeEvent = async (item) => {
-  if (switching) return;
+// 切换选集 silent: 连播链路静默失败,由调用方统一展示错误
+const changeEvent = async (item, silent = false) => {
+  if (switching) return false;
   switching = true;
   cancelPlayError();
   if (reRegisterTimer) {
@@ -1014,9 +1018,11 @@ const changeEvent = async (item) => {
     tmp.preloadIndex = '';
     tmp.sourceUrl = tmp.preloadSourceUrl;
     tmp.preloadSourceUrl = '';
+    return true;
   } catch (err) {
     console.error('[player][change]', err);
-    notifyPlayError(undefined, true);
+    if (!silent) notifyPlayError(undefined, true);
+    return false;
   } finally {
     switching = false;
   }
@@ -1070,14 +1076,31 @@ const timerUpdatePlayProcess = async () => {
     VIDEO_PROCESS_DOC.playEnd = true;
     VIDEO_PROCESS_DOC.duration = 0;
 
-    if (isLast()) {  // 最后一集
+    if (isLast() || !set.value.autoNext) {  // 最后一集或未开启自动连播
       putHistory();
       return;
     };
 
     console.log('[player][progress] autoPlayNext');
-    await changeEvent(isVisible.reverseOrder ? season.value[siteSource][index + 1] : season.value[siteSource][index - 1]);
-    MessagePlugin.info(t('pages.player.message.next'));
+    const list: string[] = season.value?.[siteSource] || [];
+    const nextOf = (item: string) => {
+      const pos = list.indexOf(item);
+      const nextPos = isVisible.reverseOrder ? pos + 1 : pos - 1;
+      if (pos < 0 || nextPos < 0 || nextPos >= list.length) return '';
+      return list[nextPos];
+    };
+    const first = isVisible.reverseOrder ? list[index + 1] : list[index - 1];
+    if (!first) { notifyPlayError(undefined, true); return; }
+
+    // 连播失败:重试1次,仍失败跳过本集,下一集也失败则弹出错误
+    let ok = await changeEvent(first, true);
+    if (!ok) ok = await changeEvent(first, true);
+    if (!ok) {
+      const skipped = nextOf(first);
+      if (skipped) ok = await changeEvent(skipped, true);
+      if (!ok) notifyPlayError(undefined, true);
+    }
+    if (ok) MessagePlugin.info(t('pages.player.message.next'));
   };
 
   const onTimeUpdate = async (currentTime: number, duration: number) => {

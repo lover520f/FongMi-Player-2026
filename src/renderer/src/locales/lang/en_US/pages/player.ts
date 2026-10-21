@@ -53,6 +53,7 @@ export default {
     title: 'Setting',
     autoSkip: 'Skip start and end',
     autoNext: 'Preload next episode',
+    autoPlayNext: 'Auto play next',
     skipStart: 'Start',
     skipEnd: 'End',
     skipSeconds: 'S',

@@ -53,6 +53,7 @@ export default {
     title: '设置',
     autoSkip: '跳片头片尾',
     autoNext: '预加载下一集',
+    autoPlayNext: '自动连播',
     skipStart: '开始',
     skipEnd: '结束',
     skipSeconds: '秒',
