@@ -114,6 +114,7 @@ const create = (options: any): XgPlayer => {
       break;
     case 'customDash':
       options.plugins = [...plugins, ShakaPlugin];
+      break;
     case 'customWebTorrent':
       break;
     default:
@@ -179,6 +180,9 @@ const playNext = (player: XgPlayer, options: any) => {
       break;
     case 'customHls':
       options.plugins = [Danmu, HlsPlugin];
+      break;
+    case 'customDash':
+      options.plugins = [Danmu, ShakaPlugin];
       break;
     case 'customWebTorrent':
       break;

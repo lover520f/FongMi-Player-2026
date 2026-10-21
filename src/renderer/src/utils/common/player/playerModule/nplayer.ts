@@ -136,7 +136,7 @@ const create = (options: any): NPlayer => {
       if (player.torrent) publicStream.destroy.customTorrent(player);
       const torrent = publicStream.create.customTorrent(player.video, options.src);
       player.torrent = torrent;
-      player.on('destroy', publicStream.destroy.customTorrent(player));
+      player.on('destroy', () => publicStream.destroy.customTorrent(player));
       break;
     default:
       break;

@@ -254,7 +254,7 @@ const filterEvent = () => {
 
   const filteredData = rawList
     .filter((item) => area === '全部' || item["vod_area"].includes(area))
-    .filter((item) => year === '全部' || item["vod_area"].includes(year))
+    .filter((item) => year === '全部' || (item["vod_year"] || '').includes(year))
     .sort((a, b) => {
       switch (sort) {
         case '按上映年份':
