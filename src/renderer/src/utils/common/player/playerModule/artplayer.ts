@@ -186,12 +186,16 @@ const onTimeUpdate = (player: Artplayer, callback: any) => {
 };
 
 const offBarrage = (player: Artplayer) => {
+  if (!publicListener.sendDanmu) return;
   // @ts-ignore
-  player.off('artplayerPluginDanmuku:emit', publicListener.sendDanmu!);
+  player.off('artplayerPluginDanmuku:emit', publicListener.sendDanmu);
+  publicListener.sendDanmu = null;
 };
 
 const offTimeUpdate = (player: Artplayer) => {
-  player.off('video:timeupdate', publicListener.timeUpdate!);
+  if (!publicListener.timeUpdate) return;
+  player.off('video:timeupdate', publicListener.timeUpdate);
+  publicListener.timeUpdate = null;
 };
 
 const speed = (player: Artplayer, speed: number) => {

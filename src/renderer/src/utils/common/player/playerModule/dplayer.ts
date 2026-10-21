@@ -87,8 +87,9 @@ class CustomDPlayer extends DPlayer {
 
   /**
    * 扩展的off方法，用于移除事件监听器。
-   * 如果没有提供回调函数，则清空该事件类型的所有监听器；
-   * 如果提供了回调函数，则仅移除与之匹配的监听器。
+   * 未提供回调函数时不做任何移除：事件列表里混有 DPlayer 内部监听
+   * （如 timeupdate 驱动已播放进度条、ptime），整体清空会导致进度条停止刷新；
+   * 提供了回调函数时，仅移除与之匹配的监听器。
    *
    * @param {string} name - 事件名称。
    * @param {Function} [callback] - 要移除的事件处理函数。
@@ -99,17 +100,15 @@ class CustomDPlayer extends DPlayer {
     const e = this.events.events || (this.events.events = {});
     // 获取特定事件名称下的所有监听器
     const evts = e[name];
+    if (!evts || !callback) return this;
     // 创建一个新数组，用于存放那些不符合移除条件的监听器
     const liveEvents: any = [];
 
-    // 如果存在事件监听器且指定了回调函数
-    if (evts && callback) {
-      // 遍历当前事件名称下的所有监听器
-      for (let i = 0, len = evts.length; i < len; i += 1) {
-        // 如果当前监听器的函数与要移除的函数不匹配[考虑直接引用和_.once包裹的情况]
-        if (evts[i] !== callback) {
-          liveEvents.push(evts[i]); // 保留该监听器
-        }
+    // 遍历当前事件名称下的所有监听器
+    for (let i = 0, len = evts.length; i < len; i += 1) {
+      // 如果当前监听器的函数与要移除的函数不匹配[考虑直接引用和_.once包裹的情况]
+      if (evts[i] !== callback) {
+        liveEvents.push(evts[i]); // 保留该监听器
       }
     }
 
@@ -323,7 +322,9 @@ const offBarrage = (_player: any) => {
 };
 
 const offTimeUpdate = (player: CustomDPlayer) => {
+  if (!publicListener.timeUpdate) return;
   player.off('timeupdate', publicListener.timeUpdate);
+  publicListener.timeUpdate = null;
 };
 
 const toggle = (player: DPlayer) => {

@@ -269,10 +269,14 @@ const onTimeUpdate = (player: NPlayer, callback: any) => {
 };
 
 const offBarrage = (player: NPlayer) => {
-  player.off('DanmakuSend', publicListener.sendDanmu!);
+  if (!publicListener.sendDanmu) return;
+  player.off('DanmakuSend', publicListener.sendDanmu);
+  publicListener.sendDanmu = null;
 };
 const offTimeUpdate = (player: NPlayer) => {
-  player.off(NPlayerEvent.TIME_UPDATE, publicListener.timeUpdate!);
+  if (!publicListener.timeUpdate) return;
+  player.off(NPlayerEvent.TIME_UPDATE, publicListener.timeUpdate);
+  publicListener.timeUpdate = null;
 };
 
 const toggle = (player: NPlayer) => {

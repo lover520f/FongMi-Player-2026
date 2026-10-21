@@ -218,8 +218,9 @@ const onTimeUpdate = (player: XgPlayer, callback: any) => {
 };
 
 const offTimeUpdate = (player: XgPlayer) => {
-  // player.offAll();
+  if (!publicListener.timeUpdate) return;
   player.off(Events.TIME_UPDATE, publicListener.timeUpdate);
+  publicListener.timeUpdate = null;
 };
 
 const toggle = (player: XgPlayer) => {
