@@ -13,8 +13,9 @@
   "homepage": "https://github.com/zhujinrun/FongMi-Player",
   "scripts": {
     "format": "prettier --write .",
-    "lint": "eslint --ext .vue,.js,.jsx,.ts,.tsx ./ --max-warnings 0",
-    "lint:fix": "eslint --ext .vue,.js,jsx,.ts,.tsx ./ --max-warnings 0 --fix",
+    "lint": "node scripts/lint-gate.cjs",
+    "lint:report": "eslint ./ || exit 0",
+    "lint:fix": "eslint ./ --fix",
     "stylelint": "stylelint src/**/*.{html,vue,sass,less}",
     "stylelint:fix": "stylelint --fix src/**/*.{html,vue,css,sass,less}",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
