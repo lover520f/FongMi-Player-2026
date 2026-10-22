@@ -11,7 +11,10 @@ import logger from './logger';
 
 import loadHtml from '../../../resources/html/load.html?asset';
 
-let winPool = {};
+const winPool = {};
+
+// 已注册监听的窗口名：复用窗口时重复注册会导致 F12 双开关 devtools、close 事件重复触发
+const wiredWindows = new Set<string>();
 
 const createWin = (name, options) => {
   const args = Object.assign({}, options);
@@ -22,13 +25,13 @@ const createWin = (name, options) => {
     win = getWin(name)!;
     if (!win.isVisible()) win.show();
     win.focus();
-    setTimeout(() => {
-      win.reload();
-    }, 0);
+    // 不再 reload：调用方（createMain/createPlay/createLoad）随后都会自行 loadURL/loadFile，
+    // 额外的 reload 会与之竞争产生双重导航
   } else {
     win = new BrowserWindow(args);
     attachTitleBarToWindow(win);
     winPool[name] = win.id;
+    wiredWindows.delete(name); // 新窗口需要重新注册监听
   }
 
   return win;
@@ -48,7 +51,7 @@ const getAllWin = () => {
 
 const closeAllWin = () => {
   try {
-    for (let i in winPool) {
+    for (const i in winPool) {
       const win = getWin(i);
       if (win && !win.isDestroyed()) {
         getWin(i)!.close();
@@ -90,13 +93,19 @@ const createMain = () => {
     },
   });
 
-  renoteEnable(mainWindow.webContents);
+  const fresh = !wiredWindows.has('main');
+  if (fresh) {
+    wiredWindows.add('main');
+    renoteEnable(mainWindow.webContents);
+  }
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
+
+  if (!fresh) return; // 复用窗口：只重新加载页面，监听保持首次注册
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     mainWindow!.webContents.send('blockUrl', details.url);
@@ -133,6 +142,7 @@ const createMain = () => {
 
   mainWindow.on('closed', () => {
     delete winPool['main'];
+    wiredWindows.delete('main');
   });
 
   mainWindow.webContents.on('did-attach-webview', (_, wc) => {
@@ -178,7 +188,11 @@ const createPlay = () => {
     },
   });
 
-  renoteEnable(playWindow.webContents);
+  const fresh = !wiredWindows.has('play');
+  if (fresh) {
+    wiredWindows.add('play');
+    renoteEnable(playWindow.webContents);
+  }
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     playWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/#/play`);
@@ -192,6 +206,8 @@ const createPlay = () => {
       }),
     );
   }
+
+  if (!fresh) return; // 复用窗口：只重新加载页面，监听保持首次注册
 
   playWindow!.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
@@ -219,6 +235,7 @@ const createPlay = () => {
 
   playWindow.on('closed', () => {
     delete winPool['play'];
+    wiredWindows.delete('play');
     const mainWindow = getWin('main');
     if (!mainWindow || mainWindow.isDestroyed()) {
       createMain();
@@ -257,9 +274,14 @@ const createLoad = () => {
   });
 
   loadWindow.loadFile(loadHtml);
+
+  if (wiredWindows.has('load')) return; // 复用窗口：只重新加载页面，监听保持首次注册
+  wiredWindows.add('load');
+
   loadWindow.on('ready-to-show', () => loadWindow!.show());
   loadWindow.on('closed', () => {
     delete winPool['load'];
+    wiredWindows.delete('load');
   });
 };
 
@@ -289,7 +311,7 @@ const getWindowState = (name: string) => {
 const saveWindowState = (name: string) => {
   const win = getWin(name);
   const bounds = win!.getBounds();
-  let db = getWindowState('all');
+  const db = getWindowState('all');
   db[`position_${name}`] = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
   setting.update_data('windowPosition', {
     value: db,

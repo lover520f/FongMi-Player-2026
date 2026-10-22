@@ -60,7 +60,7 @@ export function mergeConfigHistory(history: unknown, config?: string): GatewayCo
   if (Array.isArray(history)) history.forEach(push);
   const cur = String(config || '').trim();
   if (cur) {
-    const idx = list.findIndex(x => x.url === cur);
+    const idx = list.findIndex((x) => x.url === cur);
     if (idx > 0) {
       const [hit] = list.splice(idx, 1);
       list.unshift(hit);
@@ -229,7 +229,7 @@ async function probeHealth(timeoutMs = 3000): Promise<any | null> {
 }
 
 function pidListening(port: number): Promise<number | null> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const cmd =
       process.platform === 'win32'
         ? `netstat -ano -p tcp`
@@ -264,7 +264,7 @@ function pidListening(port: number): Promise<number | null> {
 }
 
 async function killPid(pid: number): Promise<void> {
-  await new Promise<void>(resolve => {
+  await new Promise<void>((resolve) => {
     if (process.platform === 'win32') {
       exec(`taskkill /PID ${pid} /T /F`, { windowsHide: true, timeout: 5000 }, () => resolve());
     } else {
@@ -328,14 +328,25 @@ export async function startGateway(override?: Partial<GatewaySettings>): Promise
   const dataDir = resolveDataDir(s.dataDir);
   await fs.ensureDir(dataDir);
 
-  const args = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', '-jar', jar, '--host', String(s.host || '0.0.0.0'), '--port', String(s.port || 9979), '--data', dataDir];
+  const args = [
+    '-Dstdout.encoding=UTF-8',
+    '-Dstderr.encoding=UTF-8',
+    '-jar',
+    jar,
+    '--host',
+    String(s.host || '0.0.0.0'),
+    '--port',
+    String(s.port || 9979),
+    '--data',
+    dataDir,
+  ];
   if (s.config) args.push('--config', s.config);
   if (s.spider) args.push('--spider', s.spider);
   if (s.token) args.push('--token', s.token);
 
   logger.info(`[gateway] start ${javaBin} ${args.join(' ')}`);
   stopping = false;
-  child = spawn(javaBin, args, {
+  const spawned = spawn(javaBin, args, {
     cwd: process.resourcesPath || app.getAppPath(),
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -344,30 +355,32 @@ export async function startGateway(override?: Partial<GatewaySettings>): Promise
       ...(s.javaHome ? { JAVA_HOME: s.javaHome } : {}),
     },
   });
+  child = spawned;
 
-  child.stdout?.on('data', d => {
+  spawned.stdout?.on('data', (d) => {
     appendLog(d);
     logger.info(`[gateway] ${String(d).trimEnd()}`);
   });
-  child.stderr?.on('data', d => {
+  spawned.stderr?.on('data', (d) => {
     appendLog(d);
     logger.info(`[gateway] ${String(d).trimEnd()}`);
   });
-  child.on('error', err => {
+  spawned.on('error', (err) => {
     const msg = `spawn ${javaBin} failed: ${err.message}`;
     appendLog(`${msg}\n`);
     logger.error(`[gateway] ${msg}`);
-    child = null;
+    // 只清理仍指向本进程的句柄：stopGateway 超时后可能已换新实例，旧进程迟到的事件不能抹掉它
+    if (child === spawned) child = null;
   });
-  child.on('exit', (code, signal) => {
+  spawned.on('exit', (code, signal) => {
     appendLog(`exit code=${code} signal=${signal}\n`);
     logger.info(`[gateway] exit code=${code} signal=${signal}`);
-    child = null;
+    if (child === spawned) child = null;
   });
 
   // wait briefly for /health
   for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 300));
     if (!isRunning()) break;
     const h = await probeHealth(500);
     if (h?.ok) break;
@@ -383,7 +396,7 @@ export async function stopGateway(): Promise<any> {
     child.kill();
     for (let i = 0; i < 20; i++) {
       if (!isRunning()) break;
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 150));
     }
     if (isRunning() && pid) {
       try {
@@ -407,7 +420,7 @@ export async function stopGateway(): Promise<any> {
     for (let i = 0; i < 20; i++) {
       const h = await probeHealth(400);
       if (!h?.ok) break;
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 150));
     }
   }
   return gatewayStatus();
@@ -420,7 +433,7 @@ export async function restartGateway(override?: Partial<GatewaySettings>): Promi
 
 export async function checkJava(javaHome: string): Promise<{ ok: boolean; version?: string; message?: string }> {
   const bin = resolveJavaBin(javaHome);
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     execFile(bin, ['-version'], { timeout: 8000 }, (err, _stdout, stderr) => {
       if (err) {
         resolve({ ok: false, message: err.message });

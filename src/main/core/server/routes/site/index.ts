@@ -128,25 +128,28 @@ async function syncFromGateway(configUrl: string, gatewayBase: string) {
   }
   // 记住当前源，供下次启动 --config 与配置下拉使用
   if (configUrl) saveGatewaySettings({ config: String(configUrl).trim() });
-  if (created + updated + removed === 0) {
-    throw new Error('同步未写入任何源（可能全部被跳过）');
-  }
-  return { gateway: base, total: list.length, created, updated, skipped, removed };
+  // 幂等同步：全部命中已有数据属于成功（changed=false），不应当作失败抛出
+  return {
+    gateway: base,
+    total: list.length,
+    created,
+    updated,
+    skipped,
+    removed,
+    changed: created + updated + removed > 0,
+  };
 }
 
 const api: FastifyPluginAsync = async (fastify): Promise<void> => {
-  fastify.post(
-    `/${API_VERSION}/site/sync-gateway`,
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      try {
-        const body = (req.body || {}) as { configUrl?: string; gatewayBase?: string };
-        const res = await syncFromGateway(body.configUrl || '', resolveGatewayBase(body.gatewayBase));
-        reply.code(200).send(res);
-      } catch (err: any) {
-        reply.code(500).send({ message: err?.message || String(err) });
-      }
-    },
-  );
+  fastify.post(`/${API_VERSION}/site/sync-gateway`, async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = (req.body || {}) as { configUrl?: string; gatewayBase?: string };
+      const res = await syncFromGateway(body.configUrl || '', resolveGatewayBase(body.gatewayBase));
+      reply.code(200).send(res);
+    } catch (err: any) {
+      reply.code(500).send({ message: err?.message || String(err) });
+    }
+  });
   fastify.post(
     `/${API_VERSION}/site`,
     async (req: FastifyRequest<{ Querystring: { [key: string]: string } }>, reply: FastifyReply) => {
@@ -190,7 +193,7 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
         const idList = id.split(',');
 
         await Promise.all(
-          idList.map(async itemId => {
+          idList.map(async (itemId) => {
             const currentData = await site.get(itemId);
             const updatedData = { ...currentData, isActive: status === 'enable' };
             await site.update(itemId, updatedData);

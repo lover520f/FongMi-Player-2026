@@ -13,18 +13,10 @@
 
       <t-form-item :label="$t('pages.setting.gateway.actions')" name="actions">
         <t-space align="center">
-          <span
-            class="title"
-            :class="{ disabled: status?.running || loading.start }"
-            @click="onStart"
-          >
+          <span class="title" :class="{ disabled: status?.running || loading.start }" @click="onStart">
             {{ $t('pages.setting.gateway.start') }}
           </span>
-          <span
-            class="title"
-            :class="{ disabled: !status?.running || loading.stop }"
-            @click="onStop"
-          >
+          <span class="title" :class="{ disabled: !status?.running || loading.stop }" @click="onStop">
             {{ $t('pages.setting.gateway.stop') }}
           </span>
           <span class="title" :class="{ disabled: loading.restart }" @click="onRestart">
@@ -60,13 +52,7 @@
       </t-form-item>
 
       <t-form-item :label="$t('pages.setting.gateway.port')" name="port">
-        <t-input-number
-          v-model="form.port"
-          theme="column"
-          :min="1"
-          :max="65535"
-          :style="{ width: '160px' }"
-        />
+        <t-input-number v-model="form.port" theme="column" :min="1" :max="65535" :style="{ width: '160px' }" />
       </t-form-item>
 
       <t-form-item :label="$t('pages.setting.gateway.host')" name="host">
@@ -179,6 +165,7 @@ const loading = reactive({
 });
 
 let timer: any = null;
+let refreshSeq = 0; // 状态请求代次：启停动作后丢弃过期轮询响应
 
 const statusTheme = computed(() => {
   if (status.value?.running && status.value?.healthy) return 'success';
@@ -195,10 +182,8 @@ const statusText = computed(() => {
 const configOptions = computed(() => {
   const list = [...(form.configHistory || [])];
   const cur = (form.config || '').trim();
-  if (cur && !list.some(x => x?.url === cur)) list.unshift({ name: cur, url: cur });
-  return list
-    .filter(x => x?.url)
-    .map(x => ({ label: x.name === x.url ? x.url : x.name, value: x.url }));
+  if (cur && !list.some((x) => x?.url === cur)) list.unshift({ name: cur, url: cur });
+  return list.filter((x) => x?.url).map((x) => ({ label: x.name === x.url ? x.url : x.name, value: x.url }));
 });
 
 const applySettings = (s: any) => {
@@ -215,9 +200,12 @@ const applySettings = (s: any) => {
 };
 
 const refresh = async (applyForm = false) => {
+  const seq = ++refreshSeq;
   try {
-    status.value = await fetchGatewayStatus();
-    if (applyForm && status.value?.settings) applySettings(status.value.settings);
+    const next = await fetchGatewayStatus();
+    if (seq !== refreshSeq) return; // 已被更新的请求/动作接管，丢弃乱序响应
+    status.value = next;
+    if (applyForm && next?.settings) applySettings(next.settings);
   } catch (e: any) {
     // ignore polling errors
   }
@@ -226,6 +214,7 @@ const refresh = async (applyForm = false) => {
 const onStart = async () => {
   if (status.value?.running || loading.start) return;
   loading.start = true;
+  refreshSeq++; // 作废在途轮询，避免旧状态覆盖启动结果
   try {
     status.value = await startGateway(form.javaHome ? { javaHome: form.javaHome } : {});
     await MessagePlugin.success(t('pages.setting.gateway.startOk'));
@@ -240,6 +229,7 @@ const onStart = async () => {
 const onStop = async () => {
   if (!status.value?.running || loading.stop) return;
   loading.stop = true;
+  refreshSeq++; // 作废在途轮询，避免旧状态覆盖停止结果
   try {
     status.value = await stopGateway();
     await MessagePlugin.success(t('pages.setting.gateway.stopOk'));
@@ -254,6 +244,7 @@ const onStop = async () => {
 const onRestart = async () => {
   if (loading.restart) return;
   loading.restart = true;
+  refreshSeq++; // 作废在途轮询，避免旧状态覆盖重启结果
   try {
     status.value = await restartGateway(form.javaHome ? { javaHome: form.javaHome } : {});
     await MessagePlugin.success(t('pages.setting.gateway.restartOk'));
@@ -329,9 +320,7 @@ const onApplyConfig = async () => {
     emitter.emit('refreshFilmConfig');
     emitter.emit('refreshSiteTable');
   } catch (e) {
-    await MessagePlugin.error(
-      e instanceof Error ? e.message : t('pages.setting.gateway.applyFail'),
-    );
+    await MessagePlugin.error(e instanceof Error ? e.message : t('pages.setting.gateway.applyFail'));
   } finally {
     loading.apply = false;
     refresh(false);
