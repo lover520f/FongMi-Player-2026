@@ -1,24 +1,38 @@
 <template>
-  <div class="search-bar"
-    v-if="route.name === 'FilmIndex' || route.name === 'IptvIndex' || route.name === 'AnalyzeIndex'">
+  <div
+    v-if="route.name === 'FilmIndex' || route.name === 'IptvIndex' || route.name === 'AnalyzeIndex'"
+    class="search-bar"
+  >
     <t-popup placement="bottom-right" :visible="isVisible.popup" :on-visible-change="popupVisibleEvent">
-      <t-input :placeholder="$t('pages.search.searchPlaceholder')" class="search-input" clearable v-model="searchValue"
-        :on-enter="searchEvent" :on-click="focusEvent" @clear="searchEvent(searchValue)">
+      <t-input
+        v-model="searchValue"
+        :placeholder="$t('pages.search.searchPlaceholder')"
+        class="search-input"
+        clearable
+        :on-enter="searchEvent"
+        :on-click="focusEvent"
+        @clear="searchEvent(searchValue)"
+      >
         <template #label>
-          <t-select auto-width v-model="active.filmGroupType" class="search-select"
-            v-if="activeRouteName === 'FilmIndex'" @click.stop>
+          <t-select
+            v-if="activeRouteName === 'FilmIndex'"
+            v-model="active.filmGroupType"
+            auto-width
+            class="search-select"
+            @click.stop
+          >
             <t-option key="site" :label="$t('pages.search.site')" value="site" />
             <t-option key="group" :label="$t('pages.search.group')" value="group" />
             <t-option key="all" :label="$t('pages.search.all')" value="all" />
           </t-select>
         </template>
         <template #suffixIcon>
-          <search-icon @click="searchEvent(searchValue)" style="cursor: pointer;" />
+          <search-icon style="cursor: pointer" @click="searchEvent(searchValue)" />
         </template>
       </t-input>
-      <template #content v-if="activeRouteName === 'FilmIndex' || activeRouteName === 'AnalyzeIndex'">
+      <template v-if="activeRouteName === 'FilmIndex' || activeRouteName === 'AnalyzeIndex'" #content>
         <div class="search-content">
-          <div class="history" v-show="searchList.length > 0">
+          <div v-show="searchList.length > 0" class="history">
             <div class="history-nav">
               <div class="history-title">{{ $t('pages.search.searchHistory') }}</div>
               <div class="history-clear" @click.stop="clearSearchHistory">
@@ -26,22 +40,37 @@
               </div>
             </div>
             <div class="history-content">
-              <t-tag class="nav-item" shape="round" variant="outline" v-for="(item, index) in searchList" :key="index"
-                @click="searchEvent(item.title)">{{ item.title }}</t-tag>
+              <t-tag
+                v-for="(item, index) in searchList"
+                :key="index"
+                class="nav-item"
+                shape="round"
+                variant="outline"
+                @click="searchEvent(item.title)"
+                >{{ item.title }}</t-tag
+              >
             </div>
           </div>
           <div class="hot">
             <div class="hot-nav">
-              <span :class="['nav-item', item.key === active.flag ? 'nav-item-active' : '']"
-                v-for="item in hotConfig.hotOption" :key="item.key" @click="changeHotSource(item.key)">{{ item.name
-                }}</span>
+              <span
+                v-for="item in hotConfig.hotOption"
+                :key="item.key"
+                :class="['nav-item', item.key === active.flag ? 'nav-item-active' : '']"
+                @click="changeHotSource(item.key)"
+                >{{ item.name }}</span
+              >
             </div>
             <div class="hot-content">
               <t-skeleton :row-col="rowCol" :loading="isVisible.load"></t-skeleton>
               <div v-if="!isVisible.load">
                 <div v-if="hotConfig.hotData.length !== 0" class="hot-data">
-                  <div v-for="(item, index) in hotConfig.hotData" :key="item.vod_id" class="rax-view-v2 hot-item"
-                    @click="searchEvent(item.vod_name)">
+                  <div
+                    v-for="(item, index) in hotConfig.hotData"
+                    :key="item.vod_id"
+                    class="rax-view-v2 hot-item"
+                    @click="searchEvent(item.vod_name)"
+                  >
                     <div class="normal-view" :class="[index in [0, 1, 2] ? `color-${index + 1}` : '']">
                       <div class="normal-index">{{ index + 1 }}</div>
                       <div class="normal-title no-warp">{{ item.vod_name }}</div>
@@ -68,10 +97,11 @@
 import _ from 'lodash';
 import moment from 'moment';
 import { DeleteIcon, SearchIcon } from 'tdesign-icons-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
+import { t } from '@/locales';
 import emitter from '@/utils/emitter';
 import { komectHot, doubanHot, kyLiveHot, enlightentHot } from '@/utils/hot';
 import { fetchHistoryList, clearHistorySearchList, addHistory } from '@/api/history';
@@ -84,19 +114,19 @@ const route = useRoute();
 
 const isVisible = reactive({
   load: true,
-  popup: false
+  popup: false,
 });
 const active = reactive({
   type: 'group',
   filmGroupType: 'site',
   filmFilterType: 'off',
-  flag: ''
+  flag: '',
 });
 const hotConfig = reactive({
   hotType: '',
   hotName: '',
   hotUrl: '',
-  hotClass: 'episode',  // 仅酷云[旧]生效
+  hotClass: 'episode', // 仅酷云[旧]生效
   hotSource: 1,
   hotUpdateTime: moment().format('YYYY-MM-DD'),
   hotData: [],
@@ -105,12 +135,15 @@ const hotConfig = reactive({
 const searchList = ref([]) as any;
 const searchValue = ref('');
 const activeRouteName = computed(() => route.name);
+let hotReqId = 0; // 热榜请求代次：切源/重进页面后丢弃过期响应
+let historyReqId = 0; // 历史请求代次：清空后丢弃在途响应
 
 watch(
-  () => activeRouteName.value, async (newVal) => {
+  () => activeRouteName.value,
+  async (newVal) => {
     if (newVal === 'FilmIndex') await getFilmSearhConfig();
     searchValue.value = '';
-  }
+  },
 );
 
 onMounted(async () => {
@@ -137,7 +170,7 @@ const rowCol = [
   { type: 'text', width: '100%', height: '22px' },
   { type: 'text', width: '100%', height: '22px' },
   { type: 'text', width: '100%', height: '22px' },
-]
+];
 
 const focusEvent = async () => {
   if (activeRouteName.value === 'FilmIndex' || activeRouteName.value === 'AnalyzeIndex') {
@@ -149,15 +182,36 @@ const focusEvent = async () => {
 
 // 获取搜索历史
 const getSearchHistory = async () => {
-  const res = await fetchHistoryList(0, 5, 'search');
-  searchList.value = res.data;
-}
+  const reqId = ++historyReqId;
+  try {
+    const res = await fetchHistoryList(0, 5, 'search');
+    if (reqId !== historyReqId) return; // 已被清空/新请求接管，丢弃过期结果
+    searchList.value = res.data;
+  } catch (err) {
+    console.error('[search][getSearchHistory][error]', err);
+  }
+};
 
 // 清空搜索历史
 const clearSearchHistory = async () => {
-  await clearHistorySearchList();
-  searchList.value = [];
-}
+  const dialog = DialogPlugin.confirm({
+    header: t('pages.setting.header.delete'),
+    body: t('pages.setting.table.deleteTip'),
+    confirmBtn: t('pages.setting.dialog.confirm'),
+    cancelBtn: t('pages.setting.dialog.cancel'),
+    onConfirm: async () => {
+      dialog.destroy();
+      historyReqId++; // 先作废在途历史响应，避免清空后被回填
+      try {
+        await clearHistorySearchList();
+        searchList.value = [];
+      } catch (err) {
+        console.error('[search][clearSearchHistory][error]', err);
+        MessagePlugin.error(`${t('pages.setting.data.fail')}:${err}`);
+      }
+    },
+  });
+};
 
 // 热播映射
 const hotTypeMappings = {
@@ -192,22 +246,31 @@ const getFilmSearhConfig = async () => {
 
 // 获取设置配置
 const getSetConfig = async () => {
-  const res = await fetchSettingDetail('defaultHot');
-  const hotType = res.value;
+  try {
+    const res = await fetchSettingDetail('defaultHot');
+    const hotType = res.value;
 
-  hotConfig.hotType = hotType;
-  if (hotType in hotTypeMappings) {
-    const { hotUpdateTime, hotSource } = hotTypeMappings[hotType];
-    hotConfig.hotUpdateTime = hotUpdateTime();
-    hotConfig.hotSource = hotSource;
-    hotConfig.hotName = CONFIG[hotType].name;
-    hotConfig.hotUrl = CONFIG[hotType].url;
-    hotConfig.hotOption = CONFIG[hotType].data;
-    active.flag = hotConfig.hotOption[0].key;
+    hotConfig.hotType = hotType;
+    if (hotType in hotTypeMappings) {
+      const { hotUpdateTime, hotSource } = hotTypeMappings[hotType];
+      hotConfig.hotUpdateTime = hotUpdateTime();
+      hotConfig.hotSource = hotSource;
+      hotConfig.hotName = CONFIG[hotType]?.name;
+      hotConfig.hotUrl = CONFIG[hotType]?.url;
+      const optionData = CONFIG[hotType]?.data;
+      // data 可能是数组也可能是对象（如 kuyun），统一归一化避免 hotOption[0] 崩溃
+      hotConfig.hotOption = Array.isArray(optionData) ? optionData : Object.values(optionData || {});
+      active.flag = hotConfig.hotOption[0]?.key || '';
+    }
+
+    hotReqId++;
+    getHotList();
+  } catch (err) {
+    console.error('[search][getSetConfig][error]', err);
+    MessagePlugin.error(`${t('pages.setting.data.fail')}:${err}`);
+    isVisible.load = false; // 配置拉取失败也不能让 skeleton 永驻
   }
-
-  getHotList();
-}
+};
 
 // 切换数据源
 const changeHotSource = (flag) => {
@@ -215,11 +278,12 @@ const changeHotSource = (flag) => {
   active.flag = flag;
   isVisible.load = true;
   hotConfig.hotData = [];
+  hotReqId++;
   getHotList();
 };
 
 // 获取数据
-const getHotList = async (retryCount = 1) => {
+const getHotList = async (retryCount = 1, reqId = hotReqId) => {
   try {
     const retryLimit = 4; // 重试次数 实际为 3 次
     const date = moment().subtract(retryCount, 'days');
@@ -241,20 +305,24 @@ const getHotList = async (retryCount = 1) => {
         break;
     }
 
+    if (reqId !== hotReqId) return; // 切源后过期的响应直接丢弃
+
     if (_.size(queryHotList)) {
       isVisible.load = false;
       hotConfig.hotData = queryHotList;
       hotConfig.hotUpdateTime = dateFormat;
     } else {
       if (retryCount < retryLimit) {
-        await getHotList(retryCount + 1);  // 递归请求
+        await getHotList(retryCount + 1, reqId); // 递归请求（保持同一代次）
       } else {
         isVisible.load = false;
       }
     }
   } catch (err) {
+    if (reqId !== hotReqId) return;
     MessagePlugin.error(`error:${err}`);
     console.error(err);
+    isVisible.load = false; // 出错也要收起 skeleton
   }
 };
 
@@ -266,7 +334,7 @@ const searchEvent = async (item) => {
       const doc = {
         date: moment().unix(),
         title: item,
-        type: 'search'
+        type: 'search',
       };
       const searchListSize = _.size(searchList.value);
       if (searchListSize <= 5) {
@@ -274,7 +342,7 @@ const searchEvent = async (item) => {
       } else {
         searchList.value.unshift(doc);
         searchList.value.pop();
-      };
+      }
       addHistory(doc);
     }
   }
@@ -297,7 +365,7 @@ const popupVisibleEvent = (_, context) => {
   if (context.trigger === 'document') {
     isVisible.popup = false;
   }
-}
+};
 
 // 监听设置变更
 const refreshHotConfig = () => {
@@ -460,7 +528,7 @@ const refreshHotConfig = () => {
       font-weight: 500;
     }
 
-    &.t-is-focused .t-input__prefix>.t-icon {
+    &.t-is-focused .t-input__prefix > .t-icon {
       color: var(--td-text-color-placeholder);
     }
   }
