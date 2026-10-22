@@ -355,8 +355,11 @@ watch(
   },
 );
 
+const settingsLoaded = ref(false);
+
 watch(formData,
   (newValue, _) => {
+    if (!settingsLoaded.value) return;
     storeSetting.updateConfig({
       mode: formData.value.theme,
       webdev: formData.value.webdev,
@@ -370,7 +373,10 @@ watch(formData,
       },
     } as any);
     if (newValue) {
-      updateSetting(newValue)
+      updateSetting(newValue).catch((err) => {
+        console.error('[setting][base][save][error]', err);
+        MessagePlugin.error(t('pages.setting.message.saveFail'));
+      });
     }
   }, {
   deep: true
@@ -382,7 +388,15 @@ onMounted(() => {
 });
 
 const getData = async () => {
-  formData.value = await fetchSettingList();
+  try {
+    const res = await fetchSettingList();
+    if (!res) throw new Error('empty setting list');
+    formData.value = res;
+    settingsLoaded.value = true;
+  } catch (err) {
+    console.error('[setting][base][getData][error]', err);
+    MessagePlugin.error(t('pages.setting.message.loadFail'));
+  }
 };
 
 const openProxySetting = () => {
@@ -440,7 +454,7 @@ const formatShortcut = computed(() => {
     .replace('Left', '←')
     .replace('Space', '空格');
   if (platform === 'darwin') {
-    shortcut = val
+    shortcut = shortcut
       .replace('CommandOrControl', '⌘')
       .replace('Command', '⌘')
       .replace('Meta', '⌘')
@@ -448,7 +462,7 @@ const formatShortcut = computed(() => {
       .replace('Control', '⌃')
       .replace('Shift', '⇧');
   }
-  shortcut.replace('CommandOrControl', 'Ctrl');
+  shortcut = shortcut.replace('CommandOrControl', 'Ctrl');
   return shortcut;
 });
 
@@ -513,7 +527,7 @@ const getShortKeys = (_, event) => {
 
 // 判断快捷键是否合法
 const isLegalShortcut = (item) => {
-  const specialKeys = ['Crl', 'Alt', 'Shift', 'Meta'];
+  const specialKeys = ['Ctrl', 'Alt', 'Shift', 'Meta'];
   const pubilcKeys = [
     '=',
     '-',

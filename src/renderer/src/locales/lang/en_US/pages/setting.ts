@@ -241,6 +241,7 @@ export default {
     noSelectData: 'Please select data first',
     checking: 'Please wait for the completion of status batch detection',
     loadFail: 'Load failed',
+    saveFail: 'Save failed',
   },
   ad: {
     title: 'Better on Hipy',
