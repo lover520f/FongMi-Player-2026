@@ -310,7 +310,7 @@ const playHelper = async (snifferMode, url: string, site, analyze, flimSource, a
 
     const snifferPlayUrl = `${snifferApi}?url=${playerUrl}&script=${script}${extra}`;
     // console.log(`snifferPlayUrl: ${snifferPlayUrl}`);
-    let snifferResult = await sniffer(snifferMode.type, snifferPlayUrl);
+    const snifferResult = await sniffer(snifferMode.type, snifferPlayUrl);
     data.url = snifferResult.data;
     data.headers = snifferResult.headers;
     data.mediaType = (await checkMediaType(data.url)) || 'm3u8';
@@ -380,6 +380,8 @@ const fetchRecommendSearchHelper = async (site: any, kw: any): Promise<any[]> =>
         const item = response[0];
         if (!('vod_play_from' in item && 'vod_play_url' in item)) {
           [data] = await fetchDetail(site, item.vod_id);
+        } else {
+          data = item; // 搜索结果已带播放字段时直接使用，否则会静默返回 {}
         }
       }
     }

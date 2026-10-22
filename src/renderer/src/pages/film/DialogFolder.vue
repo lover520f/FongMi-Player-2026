@@ -10,12 +10,8 @@
     <div class="folder-view">
       <div class="crumbs">
         <template v-for="(c, i) in stack" :key="i">
-          <span class="crumb-sep" v-if="i > 0">/</span>
-          <span
-            class="crumb"
-            :class="{ active: i === stack.length - 1 }"
-            @click="gotoCrumb(i)"
-          >{{ c.name }}</span>
+          <span v-if="i > 0" class="crumb-sep">/</span>
+          <span class="crumb" :class="{ active: i === stack.length - 1 }" @click="gotoCrumb(i)">{{ c.name }}</span>
         </template>
       </div>
 
@@ -65,6 +61,7 @@ const items = ref<CmsItem[]>([]);
 const loading = ref(false);
 const error = ref('');
 const busyId = ref('');
+let loadToken = 0; // 加载代次：换目录/关窗后丢弃过期分页响应
 
 // spider 每页固定 4 条（category 返回 limit=4），逐页拉全，避免目录被截断
 const PAGE_SIZE = 4;
@@ -94,6 +91,7 @@ watch(formVisible, (val) => {
 });
 
 const clear = () => {
+  loadToken++;
   stack.value = [];
   items.value = [];
   error.value = '';
@@ -111,22 +109,26 @@ const reset = () => {
 const loadAll = async () => {
   const cur = stack.value[stack.value.length - 1];
   if (!cur || !props.site || !props.site.type) return;
+  const token = ++loadToken;
   loading.value = true;
   error.value = '';
   try {
     const all: CmsItem[] = [];
     for (let pg = 1; pg <= 50; pg++) {
+      if (token !== loadToken) return; // 目录已切换，丢弃剩余分页
       const res = (await fetchList(props.site, pg, cur.vod_id, {})) as CmsItem[];
       const list = Array.isArray(res) ? res : [];
       all.push(...list);
       if (list.length < PAGE_SIZE) break;
     }
+    if (token !== loadToken) return;
     items.value = all;
   } catch (e) {
+    if (token !== loadToken) return;
     error.value = e instanceof Error ? e.message : String(e);
     items.value = [];
   } finally {
-    loading.value = false;
+    if (token === loadToken) loading.value = false;
   }
 };
 

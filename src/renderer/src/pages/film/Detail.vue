@@ -7,9 +7,7 @@
             <div class="detail-info">
               <div class="title">
                 <div v-show="info.vod_name" class="name">{{ info.vod_name }}</div>
-                <div class="rate">
-                  · {{ info.vod_score ? info.vod_score : '0.0' }}
-                </div>
+                <div class="rate">· {{ info.vod_score ? info.vod_score : '0.0' }}</div>
               </div>
               <div class="desc">
                 <div class="tag-items">
@@ -24,8 +22,8 @@
             <div class="binge">
               <div class="video-subscribe-text" @click="putBinge(false)">
                 <span>
-                  <heart-icon class="icon" v-if="isVisible.binge" />
-                  <heart-filled-icon class="icon" v-else />
+                  <heart-icon v-if="isVisible.binge" class="icon" />
+                  <heart-filled-icon v-else class="icon" />
                 </span>
                 <span class="tip">{{ $t('pages.player.film.like') }}</span>
               </div>
@@ -33,8 +31,13 @@
           </div>
           <div class="intro-wrap">
             <div class="poster">
-              <t-image class="card-main-item" :src="info.vod_pic"
-                :style="{ width: '100px', height: '150px', borderRadius: '8px' }" :lazy="true" fit="cover" />
+              <t-image
+                class="card-main-item"
+                :src="info.vod_pic"
+                :style="{ width: '100px', height: '150px', borderRadius: '8px' }"
+                :lazy="true"
+                fit="cover"
+              />
             </div>
             <div class="content-wrap">
               <div class="introduce-items">
@@ -69,14 +72,18 @@
                     </template>
                   </t-button>
                   <t-dropdown-menu>
-                    <t-dropdown-item v-for="(_, key, index) in season" :key="index" :value="key"
-                      @click="(options) => switchLineEvent(options.value as string)">
-                      <span :class="[key as any === active.flimSource ? 'active' : '']">{{ key }}</span>
+                    <t-dropdown-item
+                      v-for="(_, key, index) in season"
+                      :key="index"
+                      :value="key"
+                      @click="(options) => switchLineEvent(options.value as string)"
+                    >
+                      <span :class="[(key as any) === active.flimSource ? 'active' : '']">{{ key }}</span>
                     </t-dropdown-item>
                   </t-dropdown-menu>
                 </t-dropdown>
               </div>
-              <div class="box-anthology-analyze" v-show="isVisible.official">
+              <div v-show="isVisible.official" class="box-anthology-analyze">
                 <t-dropdown placement="bottom" :max-height="250">
                   <t-button size="small" theme="default" variant="text" auto-width>
                     <span>{{ $t('pages.player.film.analyze') }}</span>
@@ -85,8 +92,12 @@
                     </template>
                   </t-button>
                   <t-dropdown-menu>
-                    <t-dropdown-item v-for="item in dataAnalyze.active" :key="item.id" :value="item.id"
-                      @click="(options) => switchAnalyzeEvent(options.value as string)">
+                    <t-dropdown-item
+                      v-for="item in dataAnalyze.active"
+                      :key="item.id"
+                      :value="item.id"
+                      @click="(options) => switchAnalyzeEvent(options.value as string)"
+                    >
                       <span :class="[item.id === active.analyzeId ? 'active' : '']">{{ item.name }}</span>
                     </t-dropdown-item>
                   </t-dropdown-menu>
@@ -102,13 +113,20 @@
           </div>
           <div class="listbox">
             <div class="tag-container">
-              <div v-for="(item, index) in season?.[active.flimSource]" :key="item"
-                :class='["mainVideo-num", item === active.filmIndex ? "mainVideo-selected" : ""]'
-                @click="gotoPlay(item)">
+              <div
+                v-for="(item, index) in season?.[active.flimSource]"
+                :key="item"
+                :class="['mainVideo-num', item === active.filmIndex ? 'mainVideo-selected' : '']"
+                @click="gotoPlay(item)"
+              >
                 <t-tooltip :content="formatName(item)">
                   <div class="mainVideo_inner">
-                    {{ formatReverseOrder(isVisible.reverseOrder ? 'positive' : 'negative', index,
-                      season?.[active.flimSource]?.length)
+                    {{
+                      formatReverseOrder(
+                        isVisible.reverseOrder ? 'positive' : 'negative',
+                        index,
+                        season?.[active.flimSource]?.length,
+                      )
                     }}
                     <div class="playing"></div>
                   </div>
@@ -166,7 +184,7 @@ import {
   formatIndex,
   formatContent,
   formatSeason,
-  formatReverseOrder
+  formatReverseOrder,
 } from '@/utils/common/film';
 
 const props = defineProps({
@@ -201,20 +219,20 @@ const dataBinge = ref({}) as any;
 const dataAnalyze = ref({
   default: { url: '' },
   flag: [],
-  active: []
+  active: [],
 }) as any;
 
 const isVisible = reactive({
   binge: false,
   reverseOrder: true,
-  official: false
-})
+  official: false,
+});
 
 const active = reactive({
   flimSource: '',
   filmIndex: '',
-  analyzeId: ''
-})
+  analyzeId: '',
+});
 
 const snifferAnalyze = computed(() => {
   const analyzeSource = active.analyzeId
@@ -236,7 +254,7 @@ const loadData = () => {
   fetchBinge();
   fetchHistory();
   fetchAnalyze();
-}
+};
 
 const resetStates = () => {
   active.flimSource = active.filmIndex = active.analyzeId = '';
@@ -244,7 +262,7 @@ const resetStates = () => {
   isVisible.reverseOrder = true;
   season.value = [];
   dataHistory.value = dataBinge.value = dataAnalyze.value = {};
-}
+};
 
 watch(
   () => formVisible.value,
@@ -253,13 +271,13 @@ watch(
 
     if (val) loadData();
     else resetStates();
-  }
+  },
 );
 watch(
   () => props.visible,
   (val) => {
     formVisible.value = val;
-  }
+  },
 );
 watch(
   () => props.data,
@@ -267,13 +285,13 @@ watch(
     info.value = val;
 
     getDetailInfo();
-  }
+  },
 );
 watch(
   () => props.site,
   (val) => {
     formData.value = val;
-  }
+  },
 );
 
 // 获取解析
@@ -300,15 +318,32 @@ const filmPlayAndHandleResponse = async (snifferMode, url, site, analyze, flimSo
 };
 
 // 调用本地播放器 + 历史
+const playing = ref(false); // 防双击重复触发播放
 const gotoPlay = async (item) => {
-  let { url } = formatIndex(item);
-  url = decodeURIComponent(url);
-  active.filmIndex = item;
-  const { snifferMode } = set.value;
-  const analyze = snifferAnalyze.value;
+  if (playing.value) return;
+  playing.value = true;
+  try {
+    let { url } = formatIndex(item);
+    url = decodeURIComponent(url);
+    active.filmIndex = item;
+    const { snifferMode } = set.value;
+    const analyze = snifferAnalyze.value;
 
-  const response = await filmPlayAndHandleResponse(snifferMode, url, formData.value, analyze, active.flimSource, false);
-  if (response?.url) callSysPlayer(response!.url);
+    const response = await filmPlayAndHandleResponse(
+      snifferMode,
+      url,
+      formData.value,
+      analyze,
+      active.flimSource,
+      false,
+    );
+    if (response?.url) callSysPlayer(response!.url);
+  } catch (err) {
+    console.error('[film][detail][gotoPlay][error]', err);
+    MessagePlugin.error(t('pages.player.message.sniiferError'));
+  } finally {
+    playing.value = false;
+  }
 };
 
 const switchLineEvent = async (id: string) => {
@@ -358,11 +393,11 @@ const putBinge = async (update: boolean = false) => {
       dataBinge.value = {
         relateId: null,
         videoId: 0,
-        videoImage: "",
-        videoName: "",
-        videoType: "",
-        videoRemarks: "",
-        id: null
+        videoImage: '',
+        videoName: '',
+        videoType: '',
+        videoRemarks: '',
+        id: null,
       };
     }
   } else if (!update) {
@@ -404,9 +439,9 @@ const putHistory = async (): Promise<void> => {
     relateId: formData.value.id,
     siteSource: active.flimSource,
     playEnd: false,
-    videoId: info.value["vod_id"],
-    videoImage: info.value["vod_pic"],
-    videoName: info.value["vod_name"],
+    videoId: info.value['vod_id'],
+    videoImage: info.value['vod_pic'],
+    videoName: info.value['vod_name'],
     videoIndex: active.filmIndex,
     watchTime: 0,
     duration: null,
@@ -445,7 +480,6 @@ const getDetailInfo = async (): Promise<void> => {
   }
 
   .plist-body {
-
     .detail-title {
       position: relative;
       display: flex;
@@ -616,7 +650,7 @@ const getDetailInfo = async (): Promise<void> => {
 
             .t-button__text {
               &:before {
-                content: "";
+                content: '';
                 width: 1px;
                 margin: 0 var(--td-comp-margin-xs);
                 background: linear-gradient(180deg, transparent, var(--td-border-level-1-color), transparent);
@@ -659,14 +693,14 @@ const getDetailInfo = async (): Promise<void> => {
           cursor: pointer;
           margin-bottom: 4px;
           margin-right: 4px;
-          box-shadow: 0 2px 8px 0 rgba(0, 0, 0, .08);
+          box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
 
           &:hover {
             background-image: linear-gradient(var(--td-brand-color-2), var(--td-brand-color-3));
           }
 
           &:before {
-            content: "";
+            content: '';
             display: block;
             position: absolute;
             top: 1px;
@@ -687,7 +721,7 @@ const getDetailInfo = async (): Promise<void> => {
             border-radius: 8px;
             z-index: 3;
             overflow: hidden;
-            background-image: linear-gradient(hsla(0, 0%, 100%, .04), hsla(0, 0%, 100%, .06));
+            background-image: linear-gradient(hsla(0, 0%, 100%, 0.04), hsla(0, 0%, 100%, 0.06));
 
             .playing {
               display: none;
@@ -700,7 +734,7 @@ const getDetailInfo = async (): Promise<void> => {
 
         .mainVideo-selected {
           color: var(--td-brand-color);
-          background-image: linear-gradient(hsla(0, 0%, 100%, .1), hsla(0, 0%, 100%, .06));
+          background-image: linear-gradient(hsla(0, 0%, 100%, 0.1), hsla(0, 0%, 100%, 0.06));
 
           // box-shadow: 0 2px 8px 0 rgba(0,0,0,.08), inset 0 4px 10px 0 rgba(0,0,0,.14);
           .playing {

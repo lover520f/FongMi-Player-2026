@@ -1,9 +1,14 @@
 <template>
   <div class="film view-container">
-    <common-nav :title="$t('pages.film.name')" :list="siteConfig.data" :active="active.nav" search
-      @change-key="changeSitesEvent" />
+    <common-nav
+      :title="$t('pages.film.name')"
+      :list="siteConfig.data"
+      :active="active.nav"
+      search
+      @change-key="changeSitesEvent"
+    />
     <div class="content">
-      <header class="header" v-if="classConfig.data.length > 0">
+      <header v-if="classConfig.data.length > 0" class="header">
         <div class="header-nav">
           <tag-nav :list="classConfig.data" :active="active.class" @change-key="changeClassEvent" />
         </div>
@@ -18,28 +23,48 @@
             <div v-for="filterItem in filter.data[active.class]" :key="filterItem.key" class="tags-list">
               <div class="item title">{{ filterItem.name }}</div>
               <div class="wp">
-                <div v-for="item in filterItem.value" :key="item" class="item"
-                  :class="{ active: active.filter[filterItem.key] === item.v }" :label="item.n" :value="item.v"
-                  @click="changeFilterEvent(filterItem.key, item.v)">
+                <div
+                  v-for="item in filterItem.value"
+                  :key="item"
+                  class="item"
+                  :class="{ active: active.filter[filterItem.key] === item.v }"
+                  :label="item.n"
+                  :value="item.v"
+                  @click="changeFilterEvent(filterItem.key, item.v)"
+                >
                   {{ item.n }}
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <div class="content-wrapper" id="back-top">
-          <t-row :gutter="[16, 16]" style="margin: 0;">
-            <t-col :md="3" :lg="3" :xl="2" :xxl="1" v-for="item in filmData.list" :key="item.vod_id" class="card"
-              @click="playEvent(item)">
+        <div id="back-top" class="content-wrapper">
+          <t-row :gutter="[16, 16]" style="margin: 0">
+            <t-col
+              v-for="item in filmData.list"
+              :key="item.vod_id"
+              :md="3"
+              :lg="3"
+              :xl="2"
+              :xxl="1"
+              class="card"
+              @click="playEvent(item)"
+            >
               <div class="card-main">
                 <div v-if="item.vod_remarks || item.vod_remark" class="card-tag card-tag-orange">
                   <span class="card-tag-text text-hide">{{ item.vod_remarks || item.vod_remark }}</span>
                 </div>
-                <t-image class="card-main-item" :src="item.vod_pic"
-                  :style="{ height: '100%', background: 'none', overflow: 'hidden' }" :lazy="true" fit="cover"
-                  :loading="renderLoading" :error="renderError">
+                <t-image
+                  class="card-main-item"
+                  :src="item.vod_pic"
+                  :style="{ height: '100%', background: 'none', overflow: 'hidden' }"
+                  :lazy="true"
+                  fit="cover"
+                  :loading="renderLoading"
+                  :error="renderError"
+                >
                   <template #overlayContent>
-                    <div class="op" v-if="item.relateSite">
+                    <div v-if="item.relateSite" class="op">
                       <div class="op-box">
                         <span>{{ item.relateSite.name }}</span>
                       </div>
@@ -58,8 +83,13 @@
               </div>
             </t-col>
           </t-row>
-          <infinite-loading v-if="isVisible.infiniteLoading" class="infinite-loading-container" :identifier="infiniteId"
-            :distance="200" @infinite="load">
+          <infinite-loading
+            v-if="isVisible.infiniteLoading"
+            class="infinite-loading-container"
+            :identifier="infiniteId"
+            :distance="200"
+            @infinite="load"
+          >
             <template #complete>{{ infiniteCompleteTip }}</template>
             <template #error>{{ infiniteCompleteTip || $t('pages.film.infiniteLoading.netwotkError') }}</template>
           </infinite-loading>
@@ -67,15 +97,23 @@
       </div>
     </div>
 
-    <detail-view v-model:visible="isVisible.detail" :site="siteConfig.default" :data="formDetailData" />
+    <detail-view
+      v-model:visible="isVisible.detail"
+      :site="formDetailSite || siteConfig.default"
+      :data="formDetailData"
+    />
     <folder-view
       v-model:visible="isVisible.folder"
-      :site="siteConfig.default"
+      :site="formFolderSite || siteConfig.default"
       :data="formFolderData"
       @play="onFolderPlay"
     />
-    <t-loading :attach="`.${prefix}-content`" size="medium" :text="$t('pages.setting.loading')"
-      :loading="isVisible.loading" />
+    <t-loading
+      :attach="`.${prefix}-content`"
+      size="medium"
+      :text="$t('pages.setting.loading')"
+      :loading="isVisible.loading"
+    />
     <t-back-top container="#back-top" size="small" :offset="['1.4rem', '0.5rem']" :duration="2000" />
   </div>
 </template>
@@ -89,7 +127,7 @@ import PQueue from 'p-queue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { RootListIcon } from 'tdesign-icons-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { onActivated, onMounted, reactive, ref } from 'vue';
+import { onActivated, onUnmounted, onMounted, reactive, ref } from 'vue';
 
 import { prefix } from '@/config/global';
 import { t } from '@/locales';
@@ -104,7 +142,7 @@ import {
   fetchDetail,
   t3RuleInit,
   t3RuleTerminate,
-  catvodRuleInit
+  catvodRuleInit,
 } from '@/utils/cms';
 
 import DetailView from './film/Detail.vue';
@@ -139,6 +177,8 @@ const formDetailData = ref({
   key: '',
   type: 1,
 }); //  详情组件源传参
+const formDetailSite = ref<{ id?: string; type?: number } | null>(null); // 详情组件实际解析到的源（聚搜结果可能来自其他站）
+const formFolderSite = ref<{ id?: string; type?: number } | null>(null); // 目录弹窗实际解析到的源
 const formFolderData = ref<{ vod_id?: string; vod_name?: string; vod_tag?: string }>({}); // 网盘文件夹组件源传参
 const isVisible = reactive({
   toolbar: false, // 筛选
@@ -150,7 +190,7 @@ const isVisible = reactive({
   gridList: false,
   t3Work: false,
   catvod: false,
-  loading: false
+  loading: false,
 });
 const pagination = ref({
   pageIndex: 1,
@@ -171,6 +211,7 @@ const filter = ref({
 }) as any;
 
 const infiniteCompleteTip = ref(`${t('pages.film.infiniteLoading.noMore')}`);
+const listGen = ref(0); // 列表请求代次：切站/分类/筛选/搜索后递增，过期响应直接丢弃
 
 // per-site cache: switch source without full refetch
 const siteViewCache = new Map<string, any>();
@@ -198,6 +239,7 @@ const restoreSiteCache = (siteId: string): boolean => {
   pagination.value.pageIndex = Math.max(cached.pageIndex || 2, 2);
   active.value.class = cached.activeClass ?? classConfig.value.data?.[0]?.type_id ?? 0;
   if (cached.activeFilter) active.value.filter = cached.activeFilter;
+  filter.value.format = buildFilterFormat(); // 恢复筛选选择时同步重建请求参数
   isVisible.loadClass = true;
   infiniteCompleteTip.value = t('pages.film.infiniteLoading.noMore');
   return true;
@@ -208,12 +250,12 @@ const siteConfig = ref({
     id: '',
     type: 0,
     categories: '',
-    ext: ''
+    ext: '',
   },
   search: '',
   filter: false,
   data: [],
-  searchGroup: []
+  searchGroup: [],
 }) as any;
 
 const active = ref({
@@ -226,7 +268,7 @@ const active = ref({
     class: '',
     area: '全部',
     year: '全部',
-  }
+  },
 }) as any;
 
 const filmData = ref({
@@ -235,16 +277,26 @@ const filmData = ref({
 }) as any;
 
 const classConfig = ref({
-  data: [{ type_id: 0, type_name: '最新' }]
+  data: [{ type_id: 0, type_name: '最新' }],
 }) as any;
 
 onMounted(() => {
   getSetting();
 });
 
-onActivated(() => {
-  const isListenedRefreshFilmConfig = emitter.all.get('refreshFilmConfig');
-  if (!isListenedRefreshFilmConfig) emitter.on('refreshFilmConfig', refreshConfig);
+// 总线注册：off+on 保证同一实例只挂一份，卸载时移除，避免页面重建后监听泄漏/失效
+const registerBus = () => {
+  emitter.off('refreshFilmConfig', refreshConfig);
+  emitter.on('refreshFilmConfig', refreshConfig);
+  emitter.off('searchFilm', onSearchFilm);
+  emitter.on('searchFilm', onSearchFilm);
+};
+
+onActivated(registerBus);
+
+onUnmounted(() => {
+  emitter.off('refreshFilmConfig', refreshConfig);
+  emitter.off('searchFilm', onSearchFilm);
 });
 
 // cms筛选：基于已有数据
@@ -253,42 +305,46 @@ const filterEvent = () => {
   const { area, year, sort } = active.value.filter;
 
   const filteredData = rawList
-    .filter((item) => area === '全部' || item["vod_area"].includes(area))
-    .filter((item) => year === '全部' || (item["vod_year"] || '').includes(year))
+    .filter((item) => area === '全部' || (item['vod_area'] || '').includes(area))
+    .filter((item) => year === '全部' || (item['vod_year'] || '').includes(year))
     .sort((a, b) => {
       switch (sort) {
         case '按上映年份':
-          return b["vod_year"] - a["vod_year"];
+          return b['vod_year'] - a['vod_year'];
         case '按片名':
-          return a["vod_name"].localeCompare(b["vod_name"], 'zh-Hans-CN');
+          return a['vod_name'].localeCompare(b['vod_name'], 'zh-Hans-CN');
         default:
-          return +new Date(b["vod_time"]) - +new Date(a["vod_time"]);
+          return +new Date(b['vod_time']) - +new Date(a['vod_time']);
       }
     });
 
   filmData.value.list = filteredData;
 };
 
-// 非cms筛选：基于请求数据
-const filterApiEvent = async () => {
+// 按站点类型构造筛选参数（恢复缓存与筛选切换共用）
+const buildFilterFormat = () => {
   const { type } = siteConfig.value.default;
-  let filterFormat;
   if (type === 2 || type === 6 || type === 7 || type === 8) {
-    filterFormat = Object.entries(active.value.filter)
-      .reduce<{ [key: string]: string | undefined }>((item, [key, value]) => {
-        if (typeof value === 'string' && value !== '') {
-          item[key] = value as string;
-        }
-        return item;
-      }, {});
-  } else if (type === 3 || type === 4) {
-    filterFormat = Object.entries(active.value.filter)
+    return Object.entries(active.value.filter).reduce<{ [key: string]: string | undefined }>((item, [key, value]) => {
+      if (typeof value === 'string' && value !== '') {
+        item[key] = value as string;
+      }
+      return item;
+    }, {});
+  }
+  if (type === 3 || type === 4) {
+    return Object.entries(active.value.filter)
       .map(([key, value]) => `${key}=${value === '全部' ? '' : value}`)
       .join('&');
   }
+  return undefined;
+};
 
-  filter.value.format = filterFormat;
+// 非cms筛选：基于请求数据
+const filterApiEvent = async () => {
+  filter.value.format = buildFilterFormat();
 
+  listGen.value++;
   filmData.value.list = [];
   filmData.value.rawList = [];
   infiniteId.value++;
@@ -309,18 +365,20 @@ const changeFilterEvent = (key, item) => {
 const searchGroup = (type: string) => {
   // 全局搜索 + 源搜索 0关闭1聚合搜索2本站搜索
   const defaultConfig = siteConfig.value.default;
-  const selfSearch = defaultConfig["search"] !== 0 ? [{ ...defaultConfig }] : [];
+  const selfSearch = defaultConfig['search'] !== 0 ? [{ ...defaultConfig }] : [];
 
-  const groupRes = siteConfig.value.data.filter((item) => item["group"] === defaultConfig["group"] && item["search"] === 1);
-  const allRes = siteConfig.value.data.filter((item) => item["search"] === 1);
+  const groupRes = siteConfig.value.data.filter(
+    (item) => item['group'] === defaultConfig['group'] && item['search'] === 1,
+  );
+  const allRes = siteConfig.value.data.filter((item) => item['search'] === 1);
 
   switch (type) {
     case 'site':
       return selfSearch;
     case 'group':
-      return defaultConfig["search"] === 2 ? groupRes.concat(selfSearch) : groupRes;
+      return defaultConfig['search'] === 2 ? groupRes.concat(selfSearch) : groupRes;
     case 'all':
-      return defaultConfig["search"] === 2 ? allRes.concat(selfSearch) : allRes;
+      return defaultConfig['search'] === 2 ? allRes.concat(selfSearch) : allRes;
     default:
       return [];
   }
@@ -329,45 +387,48 @@ const searchGroup = (type: string) => {
 const getSetting = async () => {
   try {
     const data = await fetchSiteActive();
-    if (_.has(data, 'default') && !_.isEmpty(data["default"])) {
-      siteConfig.value.default = data["default"];
-      active.value.nav = data["default"]["id"];
+    if (_.has(data, 'default') && !_.isEmpty(data['default'])) {
+      siteConfig.value.default = data['default'];
+      active.value.nav = data['default']['id'];
     } else {
       infiniteCompleteTip.value = t('pages.film.infiniteLoading.noData');
     }
-    if (_.has(data, 'data') && !_.isEmpty(data["data"])) {
-      siteConfig.value.data = data["data"];
+    if (_.has(data, 'data') && !_.isEmpty(data['data'])) {
+      siteConfig.value.data = data['data'];
     }
-    if (_.has(data, 'filter') && !_.isEmpty(data["filter"])) {
-      siteConfig.value.filter = data["filter"];
+    if (_.has(data, 'filter') && !_.isEmpty(data['filter'])) {
+      siteConfig.value.filter = data['filter'];
     }
-    if (_.has(data, 'search') && !_.isEmpty(data["search"])) {
-      siteConfig.value.search = data["search"];
-      siteConfig.value.searchGroup = searchGroup(data["search"]);
+    if (_.has(data, 'search') && !_.isEmpty(data['search'])) {
+      siteConfig.value.search = data['search'];
+      siteConfig.value.searchGroup = searchGroup(data['search']);
     }
     isVisible.infiniteLoading = true;
   } catch (err) {
     console.log(err);
-    isVisible.infiniteLoading = false;
+    infiniteCompleteTip.value = t('pages.film.infiniteLoading.netwotkError');
+    isVisible.infiniteLoading = true; // 保持加载器渲染错误提示，避免白屏无反馈
+    MessagePlugin.error(t('pages.film.infiniteLoading.netwotkError'));
   }
 };
 
 // 获取地区
 const arrangeCmsArea = () => {
   const { rawList } = filmData.value;
-  const data = _.compact(_.map(rawList, (item) => item["vod_area"].split(',')[0]));
+  const data = _.compact(_.map(rawList, (item) => (item['vod_area'] || '').split(',')[0]));
   data.unshift('全部');
   const dataFormat = _.uniq(data);
 
   const listFormat = dataFormat.map((item) => {
-    ;
     return { n: item, v: item === '全部' ? '' : item };
   });
 
   const id = active.value.class;
   const currentFilter = filter.value.data[id];
+  if (!currentFilter) return;
 
   const index = _.findIndex(currentFilter, { key: 'area' });
+  if (index === -1) return;
   console.log(`[film] cms filter area: `, listFormat);
   filter.value.data[id][index].value = listFormat;
 };
@@ -378,15 +439,16 @@ const arrangeCmsYear = () => {
   const id = active.value.class;
   const { type } = siteConfig.value.default;
   const currentFilter = filter.value.data[id];
+  if (!currentFilter) return;
   const index = _.findIndex(currentFilter, { key: 'year' });
+  if (index === -1) return;
 
   let data;
-  if (type === 0) data = _.compact(_.map(rawList, (item) => item["vod_year"]));
-  else data = _.compact(_.map(rawList, (item) => item["vod_year"].split('–')[0]));
+  if (type === 0) data = _.compact(_.map(rawList, (item) => item['vod_year']));
+  else data = _.compact(_.map(rawList, (item) => (item['vod_year'] || '').split('–')[0]));
   data.unshift('全部');
   const dataFormat = _.uniq(data);
   const listFormat = dataFormat.map((item) => {
-    ;
     return { n: item, v: item === '全部' ? '' : item };
   });
   console.log(`[film] cms filter year: `, listFormat);
@@ -400,21 +462,21 @@ const categoriesFilter = (classData: any[]): any[] => {
   if (!categories || categories.trim() === '') return list;
 
   const categoryList = categories.split(',').map((item) => item.trim());
-  const classDataList = list.map((item) => item["type_name"]);
+  const classDataList = list.map((item) => item['type_name']);
   const categoriesInOrder: any[] = [];
 
   for (const category of categoryList) {
     const isFind = classDataList.indexOf(category);
     if (isFind === -1) continue;
 
-    const foundCategory = list.find((item) => item["type_name"] === category);
+    const foundCategory = list.find((item) => item['type_name'] === category);
     if (foundCategory) {
       categoriesInOrder.push(foundCategory);
     }
   }
 
   return categoriesInOrder;
-}
+};
 
 // 过滤条件-选中第一项
 const classFilter = (filters) => {
@@ -455,7 +517,7 @@ const getClassList = async (site) => {
     } else {
       classConfig.value.data = classDataFormat;
       const classItem = classDataFormat[0];
-      active.value.class = classItem["type_id"];
+      active.value.class = classItem['type_id'];
       if (!_.isEmpty(filters)) classFilter(filters);
       isVisible.loadClass = true;
     }
@@ -484,6 +546,7 @@ const changeClassEvent = (key) => {
   searchTxt.value = '';
   infiniteCompleteTip.value = t('pages.film.infiniteLoading.noMore');
   filmData.value = { list: [], rawList: [] };
+  listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
 };
@@ -495,11 +558,23 @@ const getFilmList = async () => {
   const t = active.value.class;
   const { format } = filter.value;
 
-  console.log(`[film] load parameter: ${defaultSite.type === 2 || defaultSite.type === 7 ? JSON.stringify({ ...format }) : JSON.stringify(format)}`);
+  console.log(
+    `[film] load parameter: ${defaultSite.type === 2 || defaultSite.type === 7 ? JSON.stringify({ ...format }) : JSON.stringify(format)}`,
+  );
 
   let length = 0;
+  const gen = listGen.value;
   try {
-    const res = await fetchList(defaultSite, pg, t, defaultSite.type === 2 || defaultSite.type === 7 ? { ...format } : format);
+    const res = await fetchList(
+      defaultSite,
+      pg,
+      t,
+      defaultSite.type === 2 || defaultSite.type === 7 ? { ...format } : format,
+    );
+    if (gen !== listGen.value) {
+      console.log('[film] stale list response dropped');
+      return 0;
+    }
     const newFilms = _.differenceWith(res, filmData.value.list, _.isEqual);
     filmData.value.list = [...filmData.value.list, ...newFilms];
     filmData.value.rawList = [...filmData.value.rawList, ...res];
@@ -512,7 +587,7 @@ const getFilmList = async () => {
       infiniteCompleteTip.value = t('pages.film.infiniteLoading.noMore');
     }
   } catch (err) {
-    infiniteCompleteTip.value = t('pages.film.infiniteLoading.netwotkError');
+    if (gen === listGen.value) infiniteCompleteTip.value = t('pages.film.infiniteLoading.netwotkError');
     console.error(err);
     length = 0;
   } finally {
@@ -529,14 +604,18 @@ const load = async ($state: { complete: () => void; loaded: () => void; error: (
       infiniteCompleteTip.value = t('pages.film.infiniteLoading.noData');
       $state.complete();
       return;
-    };
+    }
 
     const defaultSite = searchTxt.value ? searchCurrentSite.value : siteConfig.value.default;
-    console.log(defaultSite)
+    console.log(defaultSite);
     if (defaultSite.type === 7 && !isVisible.t3Work) {
       const res = await t3RuleInit(defaultSite);
       if (res.code === 200) isVisible.t3Work = true;
-      else $state.error();
+      else {
+        infiniteCompleteTip.value = t('pages.film.infiniteLoading.netwotkError');
+        $state.error();
+        return; // 初始化失败不再继续请求，避免二次状态跳转与注定失败的加载
+      }
     }
     // type8: gateway /init 基本是空对象，跳过省一跳 RTT
 
@@ -545,12 +624,8 @@ const load = async ($state: { complete: () => void; loaded: () => void; error: (
       resLength = await getSearchList();
     } else if (!isVisible.loadClass) {
       const seedTid = active.value.class ?? classConfig.value?.data?.[0]?.type_id ?? 0;
-      const settled = await Promise.allSettled([
-        getClassList(defaultSite),
-        getFilmList(),
-      ]);
-      const classInfo =
-        settled[0].status === 'fulfilled' ? settled[0].value : { classReady: false, homeList: [] };
+      const settled = await Promise.allSettled([getClassList(defaultSite), getFilmList()]);
+      const classInfo = settled[0].status === 'fulfilled' ? settled[0].value : { classReady: false, homeList: [] };
       resLength = settled[1].status === 'fulfilled' ? settled[1].value : 0;
       if (
         resLength === 0 &&
@@ -583,7 +658,7 @@ const load = async ($state: { complete: () => void; loaded: () => void; error: (
         arrangeCmsYear();
       }
       $state.loaded();
-    };
+    }
   } catch (err) {
     console.error(err);
     $state.error();
@@ -596,6 +671,7 @@ const searchEvent = async () => {
   infiniteCompleteTip.value = t('pages.film.infiniteLoading.noMore');
   filmData.value.list = [];
   filmData.value.rawList = [];
+  listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
   searchCurrentSite.value = siteConfig.value.searchGroup ? siteConfig.value.searchGroup[0] : null;
@@ -604,6 +680,7 @@ const searchEvent = async () => {
 // 搜索加载数据
 const getSearchList = async () => {
   let length = 0;
+  const gen = listGen.value;
   const pg = pagination.value.pageIndex;
   const searchGroup: any = siteConfig.value.searchGroup;
   const currentSite = searchCurrentSite.value;
@@ -623,6 +700,10 @@ const getSearchList = async () => {
 
   try {
     const resultSearch = await fetchSearch(currentSite, searchTxt.value, pg);
+    if (gen !== listGen.value) {
+      console.log('[film][search] stale search response dropped');
+      return 0;
+    }
     if (!resultSearch || resultSearch.length === 0) {
       console.log('[film][search] Empty search results.');
       // 聚搜过程中,如果某个站搜不出来结果，返回1让其他站继续搜索。单搜就返回0终止搜索
@@ -631,7 +712,10 @@ const getSearchList = async () => {
     }
 
     // console.log('currentSite:', currentSite);
-    let resultDetail = siteConfig.value.filter === 'on' ? resultSearch.filter((item) => item?.vod_name.indexOf(searchTxt.value) > -1) : resultSearch;
+    let resultDetail =
+      siteConfig.value.filter === 'on'
+        ? resultSearch.filter((item) => item?.vod_name.indexOf(searchTxt.value) > -1)
+        : resultSearch;
 
     if (resultSearch.length > 0 && !_.has(resultSearch[0], 'vod_pic')) {
       if ([0, 1].includes(currentSite.type)) {
@@ -648,16 +732,15 @@ const getSearchList = async () => {
             return false;
           }
         };
-        const res = await Promise.all(resultSearch.map(item => queue.add(() => updatePic(item))));
+        const res = await Promise.all(resultSearch.map((item) => queue.add(() => updatePic(item))));
         resultDetail = res.filter(Boolean);
       }
     }
 
-    const filmList = resultDetail
-      .map((item) => ({
-        ...item,
-        relateSite: currentSite
-      }));
+    const filmList = resultDetail.map((item) => ({
+      ...item,
+      relateSite: currentSite,
+    }));
 
     const newFilms = _.differenceWith(filmList, filmData.value.list, _.isEqual); // 去重
     filmData.value.list.push(...newFilms);
@@ -665,15 +748,20 @@ const getSearchList = async () => {
     length = isLastSite && searchGroup.length > 1 ? 0 : newFilms.length;
   } catch (err) {
     // 聚搜的某一个站点发生错误,返回1让其他站点能继续搜索。只有一个站点进行搜索的时候发生错误就返回0终止搜索
-    length = searchGroup.length > 1 ? 1 : 0;
+    length = gen === listGen.value ? (searchGroup.length > 1 ? 1 : 0) : 0;
     console.error(err);
   } finally {
     console.log(`[film] load data length: ${length}`);
-    if (searchGroup.length > 1) { // 聚搜的站点每个搜索完都重新初始化drpy源
-      isVisible.t3Work = false;
-      isVisible.catvod = false;
-    } else { // 只有一个站点搜索的情况给页面加1下次继续搜索
-      pagination.value.pageIndex++;
+    if (gen === listGen.value) {
+      // 过期响应不再改动分发/规则状态
+      if (searchGroup.length > 1) {
+        // 聚搜的站点每个搜索完都重新初始化drpy源
+        isVisible.t3Work = false;
+        isVisible.catvod = false;
+      } else {
+        // 只有一个站点搜索的情况给页面加1下次继续搜索
+        pagination.value.pageIndex++;
+      }
     }
   }
   return length;
@@ -709,6 +797,7 @@ const changeSitesEvent = async (key: string) => {
   isVisible.loadClass = false;
   pagination.value.pageIndex = 1;
   active.value.class = 0;
+  listGen.value++;
 
   const hit = restoreSiteCache(key);
   if (hit) {
@@ -753,16 +842,15 @@ const playEvent = async (item) => {
       site = relateSite;
       try {
         if (relateSite.type === 7) {
-          await t3RuleTerminate();  // 搜索加载和详情同时触发会冲突, 优先详情, 会阻断搜索加载
+          await t3RuleTerminate(); // 搜索加载和详情同时触发会冲突, 优先详情, 会阻断搜索加载
           const res = await t3RuleInit(relateSite);
           if (res.code === 200) isVisible.t3Work = true;
         } else if (relateSite.type === 8) {
           const content = await catvodRuleInit(relateSite);
           if (typeof content === 'object') isVisible.catvod = true;
         }
-        ;
       } catch (err) {
-        console.log(`[film][playEvent][error]`, err)
+        console.log(`[film][playEvent][error]`, err);
       } finally {
         isVisible.t3Work = false;
         isVisible.catvod = false;
@@ -771,7 +859,7 @@ const playEvent = async (item) => {
 
     if (!('vod_play_from' in item && 'vod_play_url' in item)) {
       const detail = await fetchDetail(site, item.vod_id);
-      if (!detail || !detail[0]?.vod_name && !detail[0]?.vod_play_from) {
+      if (!detail || (!detail[0]?.vod_name && !detail[0]?.vod_play_from)) {
         throw new Error(`empty detail: site=${site?.key || site?.name || '?'} id=${item.vod_id}`);
       }
       item = detail[0];
@@ -783,6 +871,7 @@ const playEvent = async (item) => {
     // 网盘文件夹：进目录浏览弹窗（列文件名，可继续下钻），不能当影片直接开播放窗
     if (isFolder) {
       formFolderData.value = item;
+      formFolderSite.value = site;
       isVisible.folder = true;
       return;
     }
@@ -790,6 +879,7 @@ const playEvent = async (item) => {
     const playerMode = storePlayer.getSetting.playerMode;
     if (playerMode.type === 'custom') {
       formDetailData.value = item;
+      formDetailSite.value = site;
       isVisible.detail = true;
     } else {
       storePlayer.updateConfig({
@@ -817,7 +907,7 @@ const onFolderPlay = (info) => {
   playEvent(info);
 };
 
-emitter.on('searchFilm', (data: any) => {
+const onSearchFilm = (data: any) => {
   console.log('[film][bus][receive]', data);
   const { kw, group, filter } = data;
   searchTxt.value = kw;
@@ -825,9 +915,9 @@ emitter.on('searchFilm', (data: any) => {
   if (siteConfig.value.search !== group) {
     siteConfig.value.search = group;
     siteConfig.value.searchGroup = searchGroup(group);
-  };
+  }
   searchEvent();
-});
+};
 
 const refreshConfig = async () => {
   console.log('[film][bus][refresh]');
@@ -851,6 +941,7 @@ const refreshConfig = async () => {
       year: '全部',
     },
   };
+  listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
 };
@@ -872,7 +963,7 @@ const refreshConfig = async () => {
     height: 40px;
     width: 148px;
     border: 2px solid rgba(132, 133, 141, 0.16);
-    transition: all .3s ease;
+    transition: all 0.3s ease;
     font-size: 14px;
     border-radius: 5px;
     cursor: pointer;
@@ -1078,17 +1169,17 @@ const refreshConfig = async () => {
                 bottom: 0;
                 left: 0;
                 width: 100%;
-                background: linear-gradient(to bottom, rgba(22, 24, 35, 0.4) 0%, rgba(22, 24, 35, .8) 100%);
+                background: linear-gradient(to bottom, rgba(22, 24, 35, 0.4) 0%, rgba(22, 24, 35, 0.8) 100%);
 
                 .op-box {
                   padding: var(--td-comp-paddingTB-xs) 0;
-                  background: linear-gradient(to right,
-                      rgba(255, 255, 255, 0),
-                      rgba(255, 255, 255, 0.4) 30%,
-                      rgba(255, 255, 255, 0.4) 70%,
-                      rgba(255, 255, 255, 0));
-                  ;
-
+                  background: linear-gradient(
+                    to right,
+                    rgba(255, 255, 255, 0),
+                    rgba(255, 255, 255, 0.4) 30%,
+                    rgba(255, 255, 255, 0.4) 70%,
+                    rgba(255, 255, 255, 0)
+                  );
                   span {
                     text-align: center;
                     display: inline-block;
