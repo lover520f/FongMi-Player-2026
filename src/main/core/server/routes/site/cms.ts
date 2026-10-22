@@ -120,7 +120,11 @@ const classify = async (id) => {
 
     let json;
     if (site.type === 8) {
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
       json = await response.json();
     } else {
       const response = await fetch(url);
@@ -188,7 +192,7 @@ const classify = async (id) => {
       total = jsondata.list._recordcount;
 
       filters = {};
-      for (let item of classData) {
+      for (const item of classData) {
         const key = item.type_id;
         filters[key] = cmsFilterData;
       }
@@ -204,13 +208,13 @@ const classify = async (id) => {
       total = jsondata.total;
 
       filters = {};
-      for (let item of classData) {
+      for (const item of classData) {
         const key = item.type_id;
         filters[key] = cmsFilterData;
       }
     } else if (site.type === 2) {
       const classResponse = await fetch(site.api);
-      const textResponse = classResponse.text();
+      const textResponse = await classResponse.text();
 
       const jsonClass = textResponse;
       const jsondataClass = jsonClass?.rss === undefined ? jsonClass : jsonClass.rss;
@@ -231,7 +235,7 @@ const classify = async (id) => {
 
       if (site.type === 4) {
         const type_4_response = await fetch(removeTrailingSlash(site.api));
-        const text_4_response = type_4_response.json();
+        const text_4_response = (await type_4_response.json()) as { data: { limit: number; total: number } };
         limit = text_4_response['data']['limit'];
         total = text_4_response['data']['total'];
       }
@@ -246,7 +250,7 @@ const classify = async (id) => {
               const options = valueList.map((value) => ({ n: value === '全部' ? '全部' : value, v: value }));
               result.push({
                 key,
-                name: _.find(CLASS_FILTER_CONFIG, { key }).desc,
+                name: (_.find(CLASS_FILTER_CONFIG, { key }) || {}).desc,
                 value: [{ n: '全部', v: '' }, ...options],
               });
             }
@@ -265,7 +269,12 @@ const classify = async (id) => {
       if (classData) {
         const category_url = buildUrl(site.api, `&extend=${site.ext}&ac=videolist&t=${classData[0].type_id}&pg=1`);
         const category_response = await fetch(category_url);
-        const category_json = category_response.json();
+        const category_json = (await category_response.json()) as {
+          page: number;
+          pagecount: number;
+          limit: string;
+          total: number;
+        };
         page = category_json['page'];
         pagecount = category_json['pagecount'];
         limit = parseInt(category_json['limit']);
@@ -339,12 +348,12 @@ const list = async (id, pg = 1, t, f = {}) => {
     if (site.type === 3) {
       url = buildUrl(site.api, `video?tid=${t}&pg=${pg}`);
       if (Object.keys(f).length !== 0) {
-        url = buildUrl(url, `&${f}`);
+        url = buildUrl(url, `&${typeof f === 'string' ? f : new URLSearchParams(f).toString()}`);
       }
     } else if (site.type === 4) {
       url = buildUrl(site.api, `?tid=${t}&page=${pg}`);
       if (Object.keys(f).length !== 0) {
-        url = buildUrl(url, `&${f}`);
+        url = buildUrl(url, `&${typeof f === 'string' ? f : new URLSearchParams(f).toString()}`);
       }
     } else if (site.type === 6) {
       url = buildUrl(site.api, `?ac=videolist&t=${t}&pg=${pg}&extend=${site.ext}`);
@@ -462,8 +471,8 @@ const search = async (id, wd) => {
       const searchstarrPat = reptileApiFormat(site.api, 'searchstarr');
       const searchstarrRes = reptileXpathFormat(json, searchstarrPat);
 
-      let zippedData = _.zip(searchnameRes, searchidRes, searchpicRes, searchstarrRes);
-      let list = zippedData.map((item) => {
+      const zippedData = _.zip(searchnameRes, searchidRes, searchpicRes, searchstarrRes);
+      const list = zippedData.map((item) => {
         return {
           vod_name: item[0],
           vod_id: item[1],
@@ -592,10 +601,10 @@ const detail = async (key, id) => {
       const detailjsurlRes = reptileXpathFormat(json, detailjsurlPat);
 
       const vod_from = detailxlRes.join('$$$');
-      let zippedData = _.zip(detaillistRes, detailjsurlRes);
+      const zippedData = _.zip(detaillistRes, detailjsurlRes);
       console.log(detaillistRes, detailjsurlRes);
       console.log(vod_from);
-      let list = {
+      const list = {
         vod_from,
         vod_url: [],
       };
@@ -689,8 +698,8 @@ const get_drpy_play_url = async (id, url) => {
     if (port) parsueUrl = `${protocol}//${hostname}:${port}/web/302redirect?url=${encodeURIComponent(url)}`;
     else parsueUrl = `${protocol}//${hostname}/web/302redirect?url=${encodeURIComponent(url)}`;
 
-    const response = await fetch(url);
-    const text = response.json();
+    const response = await fetch(parsueUrl);
+    const text = await response.json();
     return text;
   } catch (err) {
     throw err;
