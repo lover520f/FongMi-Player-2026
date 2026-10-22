@@ -380,25 +380,34 @@ const clearQueue = () => {
 
 // 切换源
 const changeDefaultIptvEvent = async (id: string) => {
-  try {
-    isVisible.infiniteLoading = true;
-    infiniteCompleteTip.value = 'noMore';
-    channelData.value = { list: [], total: 0 };
-    classConfig.value.data = [{ type_id: '全部', type_name: '全部' }];
-    active.value.class = '全部';
-    active.value.nav = id;
+  if (isVisible.loading) return;
+  const item = _.find(iptvConfig.value.data, { id }) as any;
+  if (!item) return;
 
-    const { url, type } = _.find(iptvConfig.value.data, { id }) as any;
-    await clearChannel();
+  isVisible.loading = true;
+  try {
+    clearQueue();
+    const { url, type } = item;
     const docs = await parseChannel(type, url);
+    await clearChannel();
     await addChannel(docs);
     await setDefault('defaultIptv', id);
 
-    MessagePlugin.success(t('pages.iptv.message.setSuccess'));
+    active.value.nav = id;
+    active.value.class = '全部';
+    classConfig.value.data = [{ type_id: '全部', type_name: '全部' }];
+    channelData.value = { list: [], total: 0 };
+    infiniteCompleteTip.value = 'noMore';
+    isVisible.infiniteLoading = true;
     infiniteId.value++;
     pagination.value.pageIndex = 0;
+    MessagePlugin.success(t('pages.iptv.message.setSuccess'));
   } catch (err) {
-    MessagePlugin.error(`${t('pages.iptv.message.setFail')}:${err}`);
+    console.error('[iptv][changeSource][error]', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    MessagePlugin.error(`${t('pages.iptv.message.setFail')}: ${msg}`);
+  } finally {
+    isVisible.loading = false;
   }
 };
 
@@ -448,7 +457,7 @@ const copyToClipboard = async (content, successMessage, errorMessage) => {
   }
 };
 const copyChannelEvent = async () => {
-  const successMessage = t('pages.iptv.message.setSuccess');
+  const successMessage = t('pages.iptv.message.copySuccess');
   const errorMessage = t('pages.iptv.message.copyFail');
   await copyToClipboard(channelItem.value.url, successMessage, errorMessage);
 

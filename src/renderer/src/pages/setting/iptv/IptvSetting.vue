@@ -302,20 +302,26 @@ const handleAllDataEvent = (type) => {
   }
 }
 
+const isSubmitting = ref(false);
+
 const defaultEvent = async (row) => {
   const { id, url, type } = row;
+  if (isSubmitting.value) return;
+  isSubmitting.value = true;
 
   try {
-    iptvTableConfig.value.default = id;
-    await setDefault('defaultIptv', id);
-    await clearChannel();
     const docs = await parseChannel(type, url);
+    await clearChannel();
     await addChannel(docs);
+    await setDefault('defaultIptv', id);
+    iptvTableConfig.value.default = id;
     emitter.emit('refreshIptvConfig');
     MessagePlugin.success(t('pages.setting.form.success'));
   } catch (err) {
     console.log('[setting][iptv][defaultEvent][error]', err);
     MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  } finally {
+    isSubmitting.value = false;
   }
 };
 </script>
