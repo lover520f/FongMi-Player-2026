@@ -1,10 +1,11 @@
 <template>
-  <div class="history" id="back-top" ref="contentRef">
-    <div class="filter_box" v-if="options.ago.length > 0 && options.week.length > 0 && options.today.length > 0"
-      @click="clearEvent">
-      <span class="icon_btn pos clear">
-        <delete-icon /> {{ $t('pages.chase.history.clearAll') }}
-      </span>
+  <div id="back-top" ref="contentRef" class="history">
+    <div
+      v-if="options.ago.length > 0 || options.week.length > 0 || options.today.length > 0"
+      class="filter_box"
+      @click="clearEvent"
+    >
+      <span class="icon_btn pos clear"> <delete-icon /> {{ $t('pages.chase.history.clearAll') }} </span>
     </div>
     <div v-for="(item, name, index) in options" :key="index" class="container-item">
       <template v-if="item.length !== 0">
@@ -12,20 +13,34 @@
           <span class="title">{{ translateDate[name] }}</span>
         </div>
         <div class="container-item-main">
-          <t-row :gutter="[16, 16]" style="margin: 0;">
-            <t-col :md="3" :lg="3" :xl="2" :xxl="1" v-for="detail in item" :key='detail["id"]' class="card"
-              @click="playEvent(detail)">
+          <t-row :gutter="[16, 16]" style="margin: 0">
+            <t-col
+              v-for="detail in item"
+              :key="detail['id']"
+              :md="3"
+              :lg="3"
+              :xl="2"
+              :xxl="1"
+              class="card"
+              @click="playEvent(detail)"
+            >
               <div class="card-close" @click.stop="removeEvent(detail)">
                 <delete-icon />
               </div>
               <div class="card-main">
-                <t-image class="card-main-item" :src='detail["videoImage"]'
-                  :style="{ width: '100%', background: 'none', overflow: 'hidden' }" :lazy="true" fit="cover"
-                  :loading="renderLoading" :error="renderError">
+                <t-image
+                  class="card-main-item"
+                  :src="detail['videoImage']"
+                  :style="{ width: '100%', background: 'none', overflow: 'hidden' }"
+                  :lazy="true"
+                  fit="cover"
+                  :loading="renderLoading"
+                  :error="renderError"
+                >
                   <template #overlayContent>
                     <div class="op">
                       <div class="op-box">
-                        <span>{{ detail["siteName"] ? detail["siteName"] : $t('pages.chase.sourceDeleted') }}</span>
+                        <span>{{ detail['siteName'] ? detail['siteName'] : $t('pages.chase.sourceDeleted') }}</span>
                       </div>
                     </div>
                   </template>
@@ -33,15 +48,16 @@
               </div>
               <div class="card-footer">
                 <p class="card-footer-title text-hide">
-                  {{ detail["videoName"] }} {{ formatIndex(detail["videoIndex"]).index }}
+                  {{ detail['videoName'] }} {{ formatIndex(detail['videoIndex']).index }}
                 </p>
                 <p class="card-footer-desc tiles-item_desc_row text-hide">
                   <laptop-icon size="14px" class="tiles-item_watch_pc icon" />
-                  <span class="tiles-item_desc_watch" v-if='detail["playEnd"]'>{{ $t('pages.chase.progress.watched')
-                    }}</span>
-                  <span class="tiles-item_desc_watch" v-else>
-                    {{ $t('pages.chase.progress.watching') }}{{ formatProgress(detail["watchTime"],
-                      detail["duration"]) }}
+                  <span v-if="detail['playEnd']" class="tiles-item_desc_watch">{{
+                    $t('pages.chase.progress.watched')
+                  }}</span>
+                  <span v-else class="tiles-item_desc_watch">
+                    {{ $t('pages.chase.progress.watching')
+                    }}{{ formatProgress(detail['watchTime'], detail['duration']) }}
                   </span>
                 </p>
               </div>
@@ -52,14 +68,17 @@
     </div>
 
     <infinite-loading class="infinite-loading-container" :identifier="infiniteId" :duration="200" @infinite="load">
-      <template #complete>{{ $t('pages.chase.infiniteLoading.complete') }}</template>
+      <template #complete>{{ emptyTip }}</template>
       <template #error>{{ $t('pages.chase.infiniteLoading.error') }}</template>
     </infinite-loading>
     <detail-view v-model:visible="isVisible.detail" :site="siteData" :data="formDetailData" />
-    <t-loading :attach="`.${prefix}-content`" size="medium" :text="$t('pages.setting.loading')"
-      :loading="isVisible.loading" />
+    <t-loading
+      :attach="`.${prefix}-content`"
+      size="medium"
+      :text="$t('pages.setting.loading')"
+      :loading="isVisible.loading"
+    />
     <t-back-top container="#back-top" size="small" :offset="['1.4rem', '0.5rem']" :duration="2000" />
-
   </div>
 </template>
 
@@ -107,8 +126,13 @@ const translateDate = computed(() => {
     today: t('pages.chase.date.today'),
     week: t('pages.chase.date.week'),
     ago: t('pages.chase.date.ago'),
-  }
+  };
 });
+
+const isEmpty = computed(() => !options.value.today.length && !options.value.week.length && !options.value.ago.length);
+const emptyTip = computed(() =>
+  isEmpty.value ? t('pages.chase.infiniteLoading.noData') : t('pages.chase.infiniteLoading.complete'),
+);
 
 const options = ref({
   today: [],
@@ -128,56 +152,54 @@ const formDetailData = ref({
 const siteData = ref();
 const isVisible = reactive({
   detail: false,
-  loading: false
+  loading: false,
 });
 const infiniteId = ref(+new Date());
 const siteConfig = ref({
-  data: []
+  data: [],
 });
 
 onMounted(async () => {
   const site_res = await fetchSiteList();
-  if (_.has(site_res, "data") && !_.isEmpty(site_res["data"])) {
-    siteConfig.value.data = site_res["data"]
+  if (_.has(site_res, 'data') && !_.isEmpty(site_res['data'])) {
+    siteConfig.value.data = site_res['data'];
   }
 });
 
+let isFirstActivate = true;
 onActivated(() => {
   const isListenedRefreshHistory = emitter.all.get('refreshHistory');
   if (!isListenedRefreshHistory) emitter.on('refreshHistory', refreshHistory);
+  if (isFirstActivate) {
+    isFirstActivate = false;
+    return;
+  }
+  refreshHistory();
 });
 
 const getHistoryList = async () => {
-  let length = 0;
-  try {
-    const { pageIndex, pageSize } = pagination.value;
+  const { pageIndex, pageSize } = pagination.value;
 
-    const history_res = await fetchHistoryList(pageIndex, pageSize, "film");
+  const history_res = await fetchHistoryList(pageIndex, pageSize, 'film');
 
-    for (const item of history_res.data) {
-      const findItem: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
-      if (findItem) item.site = { ...findItem };
-      item.siteName = findItem ? findItem["name"] : "";
-      const timeDiff = filterDate(item.date);
-      let timeKey;
-      if (timeDiff === 0) timeKey = 'today';
-      else if (timeDiff < 7) timeKey = 'week';
-      else timeKey = 'ago';
-      options.value[timeKey].push(item);
-    }
-
-    pagination.value.count = history_res.total;
-    pagination.value.pageIndex++;
-
-    length = _.size(history_res.data);
-    return length;
-  } catch (err) {
-    console.error(err);
-    length = 0;
-  } finally {
-    console.log(`[history] load data length: ${length}`);
-    return length;
+  for (const item of history_res.data) {
+    const findItem: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
+    if (findItem) item.site = { ...findItem };
+    item.siteName = findItem ? findItem['name'] : '';
+    const timeDiff = filterDate(item.date);
+    let timeKey;
+    if (timeDiff === 0) timeKey = 'today';
+    else if (timeDiff < 7) timeKey = 'week';
+    else timeKey = 'ago';
+    options.value[timeKey].push(item);
   }
+
+  pagination.value.count = history_res.total;
+  pagination.value.pageIndex++;
+
+  const length = _.size(history_res.data);
+  console.log(`[history] load data length: ${length}`);
+  return length;
 };
 
 const load = async ($state) => {
@@ -200,6 +222,10 @@ const playEvent = async (item) => {
   try {
     const { videoName, videoId } = item;
     const site: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
+    if (!site) {
+      MessagePlugin.warning(t('pages.chase.sourceDeleted'));
+      return;
+    }
     siteData.value = site;
     if (site.type === 7) {
       await t3RuleInit(site);
@@ -222,8 +248,8 @@ const playEvent = async (item) => {
         status: true,
         data: {
           info: item,
-          ext: { site: site }
-        }
+          ext: { site: site },
+        },
       };
 
       store.updateConfig(config);
@@ -238,24 +264,49 @@ const playEvent = async (item) => {
 };
 
 // 删除
-const removeEvent = async (item) => {
+const removeEvent = (item) => {
   const { id } = item;
-  const timeDiff = filterDate(item.date);
-  let timeKey;
-  console.log(item, id)
-  delHistory(id);
-  if (timeDiff === 0) timeKey = 'today';
-  else if (timeDiff < 7) timeKey = 'week';
-  else timeKey = 'ago';
-  options.value[timeKey] = _.reject(options.value[timeKey], { id });
-  pagination.value.count--;
+  const handleDelete = async () => {
+    confirmDia.hide();
+    const timeDiff = filterDate(item.date);
+    let timeKey;
+    if (timeDiff === 0) timeKey = 'today';
+    else if (timeDiff < 7) timeKey = 'week';
+    else timeKey = 'ago';
+    try {
+      await delHistory(id);
+      options.value[timeKey] = _.reject(options.value[timeKey], { id });
+      pagination.value.count--;
+    } catch (err) {
+      console.error('[history][removeEvent][error]', err);
+      MessagePlugin.error(t('pages.chase.reqError'));
+    }
+  };
+
+  const confirmDia = DialogPlugin({
+    body: t('pages.chase.dialog.deleteOne.body'),
+    header: t('pages.chase.dialog.clearAll.header'),
+    width: '340px',
+    placement: 'center',
+    closeBtn: '',
+    confirmBtn: t('pages.chase.dialog.confirm'),
+    cancelBtn: t('pages.chase.dialog.cancel'),
+    onConfirm: handleDelete,
+    onClose: () => confirmDia.hide(),
+  });
 };
 
 const clearEvent = () => {
-  const handleClear = () => {
-    clearHistoryFilmList();
-    defaultSet();
-    confirmDia.hide();
+  const handleClear = async () => {
+    try {
+      await clearHistoryFilmList();
+      defaultSet();
+    } catch (err) {
+      console.error('[history][clearEvent][error]', err);
+      MessagePlugin.error(t('pages.chase.reqError'));
+    } finally {
+      confirmDia.hide();
+    }
   };
 
   const confirmDia = DialogPlugin({
@@ -291,7 +342,7 @@ const defaultSet = () => {
     week: [],
     ago: [],
   };
-  if (!_.size(options.value)) infiniteId.value++;
+  infiniteId.value++;
   pagination.value.pageIndex = 0;
 };
 
@@ -364,7 +415,6 @@ const refreshHistory = () => {
     }
 
     .container-item-main {
-
       .card {
         box-sizing: border-box;
         width: inherit;
@@ -406,7 +456,7 @@ const refreshHistory = () => {
           height: 28px;
           width: 28px;
           z-index: 9;
-          background-color: rgba(22, 24, 35, .8);
+          background-color: rgba(22, 24, 35, 0.8);
           border-radius: 0 var(--td-radius-medium);
 
           svg {
@@ -469,17 +519,17 @@ const refreshHistory = () => {
               bottom: 0;
               left: 0;
               width: 100%;
-              background: linear-gradient(to bottom, rgba(22, 24, 35, 0.4) 0%, rgba(22, 24, 35, .8) 100%);
+              background: linear-gradient(to bottom, rgba(22, 24, 35, 0.4) 0%, rgba(22, 24, 35, 0.8) 100%);
 
               .op-box {
                 padding: var(--td-comp-paddingTB-xs) 0;
-                background: linear-gradient(to right,
-                    rgba(255, 255, 255, 0),
-                    rgba(255, 255, 255, 0.4) 30%,
-                    rgba(255, 255, 255, 0.4) 70%,
-                    rgba(255, 255, 255, 0));
-                ;
-
+                background: linear-gradient(
+                  to right,
+                  rgba(255, 255, 255, 0),
+                  rgba(255, 255, 255, 0.4) 30%,
+                  rgba(255, 255, 255, 0.4) 70%,
+                  rgba(255, 255, 255, 0)
+                );
                 span {
                   text-align: center;
                   display: inline-block;

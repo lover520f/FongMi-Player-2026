@@ -11,12 +11,15 @@ export default {
     clearAll: '清空',
     message: {
       noCheckData: '无检测数据, 跳过此操作',
-    }
+    },
   },
   dialog: {
     clearAll: {
       header: '删除记录',
       body: '确定删除所有记录吗？删除后不支持找回。',
+    },
+    deleteOne: {
+      body: '确定删除该记录吗？',
     },
     cancel: '取消',
     confirm: '确定',
@@ -33,6 +36,7 @@ export default {
   infiniteLoading: {
     complete: '人家是有底线的',
     error: '哎呀，出了点差错',
+    noData: '暂无记录',
   },
   sourceDeleted: '该源应该被删除了哦',
   reqError: '请求资源站失败，请检查网络',

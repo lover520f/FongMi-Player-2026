@@ -11,12 +11,15 @@ export default {
     clearAll: 'Clear',
     message: {
       noCheckData: 'No detected data, skip this operation',
-    }
+    },
   },
   dialog: {
     clearAll: {
       header: 'Delete the record',
-      body: 'Are you sure you want to delete all records? Recovery is not supported after deletion.'
+      body: 'Are you sure you want to delete all records? Recovery is not supported after deletion.',
+    },
+    deleteOne: {
+      body: 'Are you sure you want to delete this record?',
     },
     cancel: 'Cancel',
     confirm: 'Confirm',
@@ -24,16 +27,17 @@ export default {
   date: {
     today: 'Today',
     week: 'Within seven days',
-    ago: 'Earlier'
+    ago: 'Earlier',
   },
   progress: {
     watched: 'Finished',
-    watching: 'Seen'
+    watching: 'Seen',
   },
   infiniteLoading: {
     complete: 'Load Complete',
-    error: 'Load Error'
+    error: 'Load Error',
+    noData: 'No records yet',
   },
   sourceDeleted: 'Source not exist',
-  reqError: 'The request resource station failed, please check the network'
-}
+  reqError: 'The request resource station failed, please check the network',
+};

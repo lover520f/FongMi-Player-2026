@@ -16,45 +16,64 @@
       <div class="right-operation-container"></div>
     </div>
     <div class="main">
-      <t-row :gutter="[16, 16]" style="margin: 0;">
-        <t-col :md="3" :lg="3" :xl="2" :xxl="1" v-for="item in bingeConfig.data" :key='item["id"]' class="card"
-          @click="playEvent(item)">
+      <t-row :gutter="[16, 16]" style="margin: 0">
+        <t-col
+          v-for="item in bingeConfig.data"
+          :key="item['id']"
+          :md="3"
+          :lg="3"
+          :xl="2"
+          :xxl="1"
+          class="card"
+          @click="playEvent(item)"
+        >
           <div class="card-close" @click.stop="removeEvent(item)">
             <delete-icon />
           </div>
           <div class="card-main">
-            <div class="card-tag card-tag-orange" v-if='item["videoUpdate"]'>
+            <div v-if="item['videoUpdate']" class="card-tag card-tag-orange">
               <span class="card-tag-text text-hide">{{ $t('pages.chase.isUpdate') }}</span>
             </div>
-            <t-image class="card-main-item" :src='item["videoImage"]'
-              :style="{ width: '100%', background: 'none', overflow: 'hidden' }" :lazy="true" fit="cover"
-              :loading="renderLoading" :error="renderError">
+            <t-image
+              class="card-main-item"
+              :src="item['videoImage']"
+              :style="{ width: '100%', background: 'none', overflow: 'hidden' }"
+              :lazy="true"
+              fit="cover"
+              :loading="renderLoading"
+              :error="renderError"
+            >
               <template #overlayContent>
                 <div class="op">
                   <div class="op-box">
-                    <span>{{ item["siteName"] ? item["siteName"] : $t('pages.chase.sourceDeleted') }}</span>
+                    <span>{{ item['siteName'] ? item['siteName'] : $t('pages.chase.sourceDeleted') }}</span>
                   </div>
                 </div>
               </template>
             </t-image>
           </div>
           <div class="card-footer">
-            <p class="card-footer-title text-hide">{{ item["videoName"] }}</p>
+            <p class="card-footer-title text-hide">{{ item['videoName'] }}</p>
             <p class="card-footer-desc tiles-item_desc_row text-hide">
-              {{ item["videoRemarks"] ? item["videoRemarks"] : '' }}</p>
+              {{ item['videoRemarks'] ? item['videoRemarks'] : '' }}
+            </p>
           </div>
         </t-col>
       </t-row>
 
       <infinite-loading class="infinite-loading-container" :identifier="infiniteId" :duration="200" @infinite="load">
-        <template #complete>{{ $t('pages.chase.infiniteLoading.complete') }}</template>
+        <template #complete>{{ emptyTip }}</template>
         <template #error>{{ $t('pages.chase.infiniteLoading.error') }}</template>
       </infinite-loading>
     </div>
 
     <detail-view v-model:visible="isVisible.detail" :site="siteData" :data="formDetailData" />
-    <t-loading :attach="`.${prefix}-content`" size="medium" :text="$t('pages.setting.loading')"
-      :loading="isVisible.loading" />
+    <t-loading
+      :attach="`.${prefix}-content`"
+      size="medium"
+      :text="$t('pages.setting.loading')"
+      :loading="isVisible.loading"
+    />
   </div>
 </template>
 
@@ -67,7 +86,7 @@ import PQueue from 'p-queue';
 import { AssignmentCheckedIcon, DeleteIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { onActivated, onMounted, ref, reactive } from 'vue';
+import { computed, onActivated, onMounted, ref, reactive } from 'vue';
 
 import { clearStar, delStar, fetchStarList } from '@/api/star';
 import { fetchSiteList } from '@/api/site';
@@ -111,56 +130,59 @@ const formDetailData = ref({
 const siteData = ref();
 const isVisible = reactive({
   detail: false,
-  loading: false
+  loading: false,
 });
 const bingeConfig = ref<any>({
-  data: []
+  data: [],
 });
 const siteConfig = ref({
-  data: []
-})
+  data: [],
+});
 
 const infiniteId = ref(+new Date());
 
+const isEmpty = computed(() => !_.size(bingeConfig.value.data));
+const emptyTip = computed(() =>
+  isEmpty.value ? t('pages.chase.infiniteLoading.noData') : t('pages.chase.infiniteLoading.complete'),
+);
+
 onMounted(async () => {
   const site_res = await fetchSiteList();
-  if (_.has(site_res, "data") && !_.isEmpty(site_res["data"])) {
-    siteConfig.value.data = site_res["data"]
+  if (_.has(site_res, 'data') && !_.isEmpty(site_res['data'])) {
+    siteConfig.value.data = site_res['data'];
   }
 });
 
+let isFirstActivate = true;
 onActivated(() => {
   const isListenedRefreshBinge = emitter.all.get('refreshBinge');
   if (!isListenedRefreshBinge) emitter.on('refreshBinge', refreshBinge);
+  if (isFirstActivate) {
+    isFirstActivate = false;
+    return;
+  }
+  refreshBinge();
 });
 
 const getBingeList = async () => {
-  let length = 0;
-  try {
-    const { pageIndex, pageSize } = pagination.value;
+  const { pageIndex, pageSize } = pagination.value;
 
-    const star_res = await fetchStarList(pageIndex, pageSize);
+  const star_res = await fetchStarList(pageIndex, pageSize);
 
-    for (const item of star_res.data) {
-      const findItem: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
-      if (findItem) item.site = { ...findItem };
-      item.siteName = findItem ? findItem.name : "";
-    }
-
-    bingeConfig.value.data = _.unionWith(bingeConfig.value.data, star_res.data, _.isEqual) as any;
-
-    pagination.value.count = star_res.total;
-    pagination.value.pageIndex++;
-
-    length = _.size(star_res.data);
-    return length;
-  } catch (err) {
-    console.error(err);
-    length = 0;
-  } finally {
-    console.log(`[binge] load data length: ${length}`);
-    return length;
+  for (const item of star_res.data) {
+    const findItem: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
+    if (findItem) item.site = { ...findItem };
+    item.siteName = findItem ? findItem.name : '';
   }
+
+  bingeConfig.value.data = _.unionWith(bingeConfig.value.data, star_res.data, _.isEqual) as any;
+
+  pagination.value.count = star_res.total;
+  pagination.value.pageIndex++;
+
+  const length = _.size(star_res.data);
+  console.log(`[binge] load data length: ${length}`);
+  return length;
 };
 
 const load = async ($state) => {
@@ -181,6 +203,10 @@ const playEvent = async (item) => {
   try {
     const { videoName, videoId } = item;
     const site: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
+    if (!site) {
+      MessagePlugin.warning(t('pages.chase.sourceDeleted'));
+      return;
+    }
     siteData.value = site;
     if (site.type === 7) {
       await t3RuleInit(site);
@@ -204,8 +230,8 @@ const playEvent = async (item) => {
         status: true,
         data: {
           info: item,
-          ext: { site: site }
-        }
+          ext: { site: site },
+        },
       };
 
       store.updateConfig(config);
@@ -220,11 +246,31 @@ const playEvent = async (item) => {
 };
 
 // 删除
-const removeEvent = async (item) => {
+const removeEvent = (item) => {
   const { id } = item;
-  await delStar(id);
-  bingeConfig.value.data = _.reject(bingeConfig.value.data, { id }) as any;
-  pagination.value.count--;
+  const handleDelete = async () => {
+    confirmDia.hide();
+    try {
+      await delStar(id);
+      bingeConfig.value.data = _.reject(bingeConfig.value.data, { id }) as any;
+      pagination.value.count--;
+    } catch (err) {
+      console.error('[chase][binge][removeEvent][error]', err);
+      MessagePlugin.error(t('pages.chase.reqError'));
+    }
+  };
+
+  const confirmDia = DialogPlugin({
+    body: t('pages.chase.dialog.deleteOne.body'),
+    header: t('pages.chase.dialog.clearAll.header'),
+    width: '340px',
+    placement: 'center',
+    closeBtn: '',
+    confirmBtn: t('pages.chase.dialog.confirm'),
+    cancelBtn: t('pages.chase.dialog.cancel'),
+    onConfirm: handleDelete,
+    onClose: () => confirmDia.hide(),
+  });
 };
 
 // 更新
@@ -244,25 +290,37 @@ const checkUpdaterEvent = async () => {
   try {
     MessagePlugin.info(t('pages.setting.message.checking'));
     const fetchAndUpdateVideoRemarks = async (item) => {
-      if (!item.siteName) return;
+      if (!item.siteName) return 'skip';
       const { site, videoId } = item;
-      try {
-        if (site.type === 7) await t3RuleInit(site);
-        else if (site.type === 8) await catvodRuleInit(site);
-        const [res] = await fetchDetail(site, videoId);
-        if (res.vod_remarks) {
-          updateVideoRemarks(item, res);
-        }
-      } catch (err) {
-        console.error(err);
+      if (site.type === 7) await t3RuleInit(site);
+      else if (site.type === 8) await catvodRuleInit(site);
+      const [res] = await fetchDetail(site, videoId);
+      if (res.vod_remarks) {
+        updateVideoRemarks(item, res);
       }
+      return 'ok';
     };
-    await Promise.all(
-      bingeConfig.value.data.map((item) => {
-        queue.add(() => fetchAndUpdateVideoRemarks(item));
-      }),
+    const results = await Promise.all(
+      bingeConfig.value.data.map((item) =>
+        queue.add(() =>
+          fetchAndUpdateVideoRemarks(item).catch((err) => {
+            console.error('[chase][binge][checkUpdater][error]', err);
+            return 'fail';
+          }),
+        ),
+      ),
     );
-    MessagePlugin.success(t('pages.setting.form.success'));
+    const ok = results.filter((r) => r === 'ok').length;
+    const fail = results.filter((r) => r === 'fail').length;
+    if (fail > 0 && ok === 0) {
+      MessagePlugin.error(t('pages.setting.form.fail'));
+    } else if (fail > 0) {
+      MessagePlugin.warning(`${t('pages.setting.form.success')} (${ok}/${ok + fail})`);
+    } else if (ok === 0) {
+      MessagePlugin.info(t('pages.chase.binge.message.noCheckData'));
+    } else {
+      MessagePlugin.success(t('pages.setting.form.success'));
+    }
   } catch (err) {
     console.log('[chase][binge][checkUpdaterEvent][error]', err);
     MessagePlugin.error(t('pages.setting.form.fail'));
@@ -270,10 +328,16 @@ const checkUpdaterEvent = async () => {
 };
 
 const clearEvent = () => {
-  const handleClear = () => {
-    clearStar();
-    defaultSet();
-    confirmDia.hide();
+  const handleClear = async () => {
+    try {
+      await clearStar();
+      defaultSet();
+    } catch (err) {
+      console.error('[chase][binge][clearEvent][error]', err);
+      MessagePlugin.error(t('pages.chase.reqError'));
+    } finally {
+      confirmDia.hide();
+    }
   };
 
   const confirmDia = DialogPlugin({
@@ -291,7 +355,7 @@ const clearEvent = () => {
 
 const defaultSet = () => {
   bingeConfig.value.data = [];
-  if (!_.size(bingeConfig.value.data)) infiniteId.value++;
+  infiniteId.value++;
   pagination.value.pageIndex = 0;
 };
 
@@ -361,7 +425,7 @@ const refreshBinge = () => {
       height: 28px;
       width: 28px;
       z-index: 9;
-      background-color: rgba(22, 24, 35, .8);
+      background-color: rgba(22, 24, 35, 0.8);
       border-radius: 0 var(--td-radius-medium);
 
       svg {
@@ -424,17 +488,17 @@ const refreshBinge = () => {
           bottom: 0;
           left: 0;
           width: 100%;
-          background: linear-gradient(to bottom, rgba(22, 24, 35, 0.4) 0%, rgba(22, 24, 35, .8) 100%);
+          background: linear-gradient(to bottom, rgba(22, 24, 35, 0.4) 0%, rgba(22, 24, 35, 0.8) 100%);
 
           .op-box {
             padding: var(--td-comp-paddingTB-xs) 0;
-            background: linear-gradient(to right,
-                rgba(255, 255, 255, 0),
-                rgba(255, 255, 255, 0.4) 30%,
-                rgba(255, 255, 255, 0.4) 70%,
-                rgba(255, 255, 255, 0));
-            ;
-
+            background: linear-gradient(
+              to right,
+              rgba(255, 255, 255, 0),
+              rgba(255, 255, 255, 0.4) 30%,
+              rgba(255, 255, 255, 0.4) 70%,
+              rgba(255, 255, 255, 0)
+            );
             span {
               text-align: center;
               display: inline-block;
