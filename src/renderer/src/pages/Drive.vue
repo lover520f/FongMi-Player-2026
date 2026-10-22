@@ -41,7 +41,7 @@
               </div>
             </div>
           </div>
-          <div v-if="driveContent.length === 0" style="min-height: 1px; text-align: center; margin-bottom: 2em;">
+          <div v-if="driveContent.length === 0 && !isVisible.loading" style="min-height: 1px; text-align: center; margin-bottom: 2em;">
             {{ infiniteCompleteTip }}
           </div>
         </div>
@@ -141,21 +141,31 @@ const getSetting = async () => {
       driveConfig.value.data = data["data"];
     }
   } catch (err) {
-    console.error(err);
+    console.error('[drive][getSetting][error]', err);
+    MessagePlugin.error(t('pages.drive.message.reqError'));
   }
 };
 
 const initCloud = async () => {
-  await spiderInit();
-  const { startPage } = driveConfig.value.default;
-  let path = startPage;
-  let files = JSON.parse(await spider.value.dir(startPage));
-  if (startPage === '/') {
-    files = JSON.parse(await spider.value.dir(files.list[0].path));
-    path = files.list[0].path;
-  };
-  driveContent.value = files.list;
-  formatBreadcrumb(path);
+  isVisible.loading = true;
+  try {
+    await spiderInit();
+    const { startPage } = driveConfig.value.default;
+    let path = startPage;
+    let files = JSON.parse(await spider.value.dir(startPage));
+    if (startPage === '/') {
+      files = JSON.parse(await spider.value.dir(files.list[0].path));
+      path = files.list[0].path;
+    }
+    driveContent.value = files.list;
+    formatBreadcrumb(path);
+  } catch (err) {
+    console.error('[drive][initCloud][error]', err);
+    infiniteCompleteTip.value = t('pages.drive.message.reqError');
+    MessagePlugin.error(t('pages.drive.message.reqError'));
+  } finally {
+    isVisible.loading = false;
+  }
 };
 
 // 格式化面包屑
@@ -179,10 +189,19 @@ const formatBreadcrumb = (str: string) => {
 };
 
 // 面包屑跳转
-const gotoBreadcrumbPath = async (path) => {
-  const res = JSON.parse(await spider.value.dir(path));
-  driveContent.value = res.list;
-  formatBreadcrumb(path);
+const gotoBreadcrumbPath = async (path: string) => {
+  if (isVisible.loading) return;
+  isVisible.loading = true;
+  try {
+    const res = JSON.parse(await spider.value.dir(path));
+    driveContent.value = res.list;
+    formatBreadcrumb(path);
+  } catch (err) {
+    console.error('[drive][gotoBreadcrumbPath][error]', err);
+    MessagePlugin.error(t('pages.drive.message.reqError'));
+  } finally {
+    isVisible.loading = false;
+  }
 };
 
 const spiderInit = async () => {
@@ -261,27 +280,17 @@ const playEvent = (item, fullPath) => {
 const changeDefaultIptvEvent = async (id) => {
   console.log(`[drive] change source: ${id}`);
 
+  if (isVisible.loading) return;
   let item: any = _.find(driveConfig.value.data, { id });
+  if (!item) return;
   item.startPage = item?.startPage ? item!.startPage : '/';
 
   if (spider.value) spider.value.destroy();
   driveContent.value = [];
   breadcrumb.value = [];
-  driveConfig.value = {
-    data: [],
-    default: {
-      name: '',
-      server: '',
-      startPage: '',
-      search: false,
-      headers: {},
-      params: {}
-    }
-  };
-  active.value.nav = '';
-  infiniteCompleteTip.value = t('pages.drive.infiniteLoading.noMore');
   active.value.nav = id;
   driveConfig.value.default = item;
+  infiniteCompleteTip.value = t('pages.drive.infiniteLoading.noMore');
   await initCloud();
 };
 
