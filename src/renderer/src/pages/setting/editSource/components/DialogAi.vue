@@ -1,6 +1,12 @@
 <template>
-  <t-dialog v-model:visible="formVisible" :closeOnOverlayClick="false" :width="650"
-    :header="$t('pages.setting.editSource.source.dialog.ai.title')" placement="center" :footer="false">
+  <t-dialog
+    v-model:visible="formVisible"
+    :close-on-overlay-click="false"
+    :width="650"
+    :header="$t('pages.setting.editSource.source.dialog.ai.title')"
+    placement="center"
+    :footer="false"
+  >
     <template #body>
       <div class="ai-dialog">
         <p class="ai-item">{{ $t('pages.setting.editSource.source.dialog.ai.declare') }}</p>
@@ -9,7 +15,8 @@
             <t-collapse-panel :header="$t('pages.setting.editSource.source.dialog.ai.parms')">
               <template #headerRightContent>
                 <t-button size="small" shape="round" @click.stop="saveAi">{{
-                  $t('pages.setting.editSource.source.dialog.ai.save') }}</t-button>
+                  $t('pages.setting.editSource.source.dialog.ai.save')
+                }}</t-button>
               </template>
               <div class="fetch-key-content">
                 <t-space>
@@ -22,12 +29,24 @@
                 </t-space>
               </div>
               <div class="parms-bar">
-                <t-input :label="$t('pages.setting.editSource.source.dialog.ai.server')"
-                  v-model="formData.config.server" class="input-item"></t-input>
-                <t-input :label="$t('pages.setting.editSource.source.dialog.ai.key')" v-model="formData.config.key"
-                  class="input-item" type="password"></t-input>
-                <t-select :label="$t('pages.setting.editSource.source.dialog.ai.model')" creatable filterable
-                  @create="createModel" v-model="formData.config.model">
+                <t-input
+                  v-model="formData.config.server"
+                  :label="$t('pages.setting.editSource.source.dialog.ai.server')"
+                  class="input-item"
+                ></t-input>
+                <t-input
+                  v-model="formData.config.key"
+                  :label="$t('pages.setting.editSource.source.dialog.ai.key')"
+                  class="input-item"
+                  type="password"
+                ></t-input>
+                <t-select
+                  v-model="formData.config.model"
+                  :label="$t('pages.setting.editSource.source.dialog.ai.model')"
+                  creatable
+                  filterable
+                  @create="createModel"
+                >
                   <t-option v-for="item in models" :key="item.label" :value="item.value" :label="item.label" />
                 </t-select>
               </div>
@@ -36,31 +55,40 @@
         </div>
         <div class="ai-item instructionLibrary">
           <span class="ai-label">{{ $t('pages.setting.editSource.source.dialog.ai.instructionLibrary') }}</span>
-          <t-radio-group variant="default-filled" size="small" v-model="formData.aiType" style="margin-bottom: 0;">
+          <t-radio-group v-model="formData.aiType" variant="default-filled" size="small" style="margin-bottom: 0">
             <t-radio-button value="qa">{{ $t('pages.setting.editSource.source.dialog.ai.qa') }}</t-radio-button>
             <t-radio-button value="filter">{{ $t('pages.setting.editSource.source.dialog.ai.filter') }}</t-radio-button>
-            <t-radio-button value="cssSelector">{{ $t('pages.setting.editSource.source.dialog.ai.cssSelector')
-              }}</t-radio-button>
+            <t-radio-button value="cssSelector">{{
+              $t('pages.setting.editSource.source.dialog.ai.cssSelector')
+            }}</t-radio-button>
           </t-radio-group>
         </div>
-        <div class="ai-item codeSnippet" v-if="formData.aiType !== 'qa'">
+        <div v-if="formData.aiType !== 'qa'" class="ai-item codeSnippet">
           <!-- <span class="ai-label">{{ $t('pages.setting.editSource.source.dialog.ai.codeSnippet') }}</span> -->
-          <t-textarea v-model="formData.codeSnippet" :autosize="{ minRows: 1, maxRows: 5 }"
-            :placeholder="$t('pages.setting.editSource.source.dialog.ai.codeSnippetTip')"></t-textarea>
+          <t-textarea
+            v-model="formData.codeSnippet"
+            :autosize="{ minRows: 1, maxRows: 5 }"
+            :placeholder="$t('pages.setting.editSource.source.dialog.ai.codeSnippetTip')"
+          ></t-textarea>
         </div>
         <div class="ai-item demand">
-          <t-textarea v-model="formData.demand" class="textarea" :autosize="{ minRows: 1, maxRows: 5 }"
-            :placeholder="$t('pages.setting.editSource.source.dialog.ai.fetchTip')"></t-textarea>
+          <t-textarea
+            v-model="formData.demand"
+            class="textarea"
+            :autosize="{ minRows: 1, maxRows: 5 }"
+            :placeholder="$t('pages.setting.editSource.source.dialog.ai.fetchTip')"
+          ></t-textarea>
           <t-button :loading="isVisible.loading" size="small" shape="round" class="send" @click="AiAnswerEvent()">
             {{ $t('pages.setting.editSource.source.dialog.ai.fetch') }}
           </t-button>
         </div>
-        <div class="ai-item result" v-if="formData.result && !isVisible.loading">
+        <div v-if="formData.result && !isVisible.loading" class="ai-item result">
           <t-card :title="$t('pages.setting.editSource.source.dialog.ai.result')">
-            <div ref="contentElm" v-html="formData.contentHtml" class="chat-msg-content pa-3"></div>
+            <div ref="contentElm" class="chat-msg-content pa-3" v-html="formData.contentHtml"></div>
             <template #actions>
               <t-button size="small" shape="round" @click.stop="copyAiAnswer">{{
-                $t('pages.setting.editSource.source.dialog.ai.copy') }}</t-button>
+                $t('pages.setting.editSource.source.dialog.ai.copy')
+              }}</t-button>
             </template>
           </t-card>
         </div>
@@ -72,8 +100,8 @@
 <script setup lang="ts">
 import { ref, reactive, watch, nextTick } from 'vue';
 import { MessagePlugin } from 'tdesign-vue-next';
-import JSON5 from "json5";
-import hljs from "highlight.js";
+import JSON5 from 'json5';
+import hljs from 'highlight.js';
 import MarkdownIt from 'markdown-it';
 import mathjax3 from 'markdown-it-mathjax3';
 
@@ -88,7 +116,7 @@ const props = defineProps({
   visible: {
     type: Boolean,
     default: false,
-  }
+  },
 });
 
 const formVisible = ref(false);
@@ -116,18 +144,18 @@ const formData = ref({
   codeSnippet: '',
   demand: '',
   result: '',
-  contentHtml: ''
-})
+  contentHtml: '',
+});
 const isVisible = reactive({
-  loading: false
-})
+  loading: false,
+});
 
 const emit = defineEmits(['update:visible']);
 watch(
   () => formVisible.value,
   (val) => {
     emit('update:visible', val);
-  }
+  },
 );
 watch(
   () => props.visible,
@@ -163,7 +191,7 @@ const saveAi = async () => {
     MessagePlugin.success(t('pages.setting.data.success'));
   } catch (err) {
     MessagePlugin.error(`${t('pages.setting.data.fail')}:${err}`);
-  };
+  }
 };
 
 const AiAnswerEvent = async () => {
@@ -182,7 +210,7 @@ const AiAnswerEvent = async () => {
         if (toObj && typeof toObj === 'object') {
           content = JSON5.stringify(content);
         }
-      } catch (e) { }
+      } catch (e) {}
       formData.value.result = content;
       await nextTick();
       MessagePlugin.success(t('pages.setting.data.success'));
@@ -191,11 +219,15 @@ const AiAnswerEvent = async () => {
       MessagePlugin.error(`${t('pages.setting.data.fail')}: ${response.msg}`);
     }
   } catch (err) {
-    formData.value.result = err as string;
+    formData.value.result = String(err);
     MessagePlugin.error(`${t('pages.setting.data.fail')}: ${err}`);
   } finally {
-    formData.value.contentHtml = md.render(formData.value.result);
-    isVisible.loading = false;
+    isVisible.loading = false; // 先复位，md.render 抛错也不能卡死发送按钮
+    try {
+      formData.value.contentHtml = md.render(String(formData.value.result ?? ''));
+    } catch (e) {
+      formData.value.contentHtml = '';
+    }
   }
 };
 
@@ -205,7 +237,7 @@ const copyAiAnswer = async () => {
     MessagePlugin.success(t('pages.setting.data.success'));
   } catch (err) {
     MessagePlugin.error(`${t('pages.setting.data.fail')}:${err}`);
-  };
+  }
 };
 </script>
 
@@ -232,7 +264,9 @@ const copyAiAnswer = async () => {
 
     .textarea {
       :deep(textarea) {
-        padding: calc(calc(var(--td-comp-size-m) - var(--td-line-height-body-medium)) / 2) calc(var(--td-comp-paddingLR-l) + 29px) calc(calc(var(--td-comp-size-m) - var(--td-line-height-body-medium)) / 2) var(--td-comp-paddingLR-s) !important;
+        padding: calc(calc(var(--td-comp-size-m) - var(--td-line-height-body-medium)) / 2)
+          calc(var(--td-comp-paddingLR-l) + 29px)
+          calc(calc(var(--td-comp-size-m) - var(--td-line-height-body-medium)) / 2) var(--td-comp-paddingLR-s) !important;
       }
     }
 

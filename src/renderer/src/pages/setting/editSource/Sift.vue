@@ -31,21 +31,30 @@
                   </template>
                   <template #append>
                     <t-button class="button" theme="default" @click="getSource()">{{
-                      $t('pages.setting.editSource.sift.action.source') }}</t-button>
+                      $t('pages.setting.editSource.sift.action.source')
+                    }}</t-button>
                   </template>
 
                   <div class="input-container">
-                    <t-input v-model="form.req.url" :placeholder="$t('pages.setting.placeholder.general')"
-                      class="input" />
+                    <t-input
+                      v-model="form.req.url"
+                      :placeholder="$t('pages.setting.placeholder.general')"
+                      class="input"
+                    />
                     <div class="method" @click="showDialog('reqParam')">
                       <transform-icon />
                     </div>
                   </div>
                 </t-input-adornment>
-                <t-dialog v-model:visible="isVisible.reqParam" placement="center"
+                <t-dialog
+                  v-model:visible="isVisible.reqParam"
+                  placement="center"
                   :header="$t('pages.setting.editSource.sift.dialog.request.title')"
-                  :cancel-btn="$t('pages.setting.editSource.sift.dialog.request.cancel')" show-in-attached-element
-                  @confirm="isVisible.reqParam = false" @cancel="reqCancel()">
+                  :cancel-btn="$t('pages.setting.editSource.sift.dialog.request.cancel')"
+                  show-in-attached-element
+                  @confirm="isVisible.reqParam = false"
+                  @cancel="reqCancel()"
+                >
                   <div class="dialog-item">
                     <p>{{ $t('pages.setting.editSource.sift.dialog.request.reqEncode') }}</p>
                     <t-select v-model="form.req.encode">
@@ -58,9 +67,13 @@
                   </div>
                   <div v-if="form.req.method !== 'GET'" class="dialog-item">
                     <p>{{ $t('pages.setting.editSource.sift.dialog.request.reqBody') }}</p>
-                    <t-select v-model="form.req.contentType" class="contentType" style="margin-bottom: 5px;">
-                      <t-option v-for="item in reqContentTypes" :key="item.label" :value="item.value"
-                        :label="item.label" />
+                    <t-select v-model="form.req.contentType" class="contentType" style="margin-bottom: 5px">
+                      <t-option
+                        v-for="item in reqContentTypes"
+                        :key="item.label"
+                        :value="item.value"
+                        :label="item.label"
+                      />
                     </t-select>
                     <t-textarea v-model="form.req.body" placeholder='{ "key": "01b9b7" }' />
                   </div>
@@ -68,37 +81,77 @@
               </div>
             </div>
             <div class="code-op-item card">
-              <t-input v-model="form.class_name" :label="$t('pages.setting.editSource.sift.rule.className')"
-                :placeholder="$t('pages.setting.editSource.sift.placeholder.classNameTip')" class="input w-100%" />
-              <t-input v-model="form.class_url" :label="$t('pages.setting.editSource.sift.rule.classUrl')"
-                :placeholder="$t('pages.setting.editSource.sift.placeholder.classUrlTip')" class="input w-100%" />
-              <t-input v-model="form.class_parse" :label="$t('pages.setting.editSource.sift.rule.class')"
-                :placeholder="$t('pages.setting.editSource.sift.placeholder.classParseTip')" class="input w-100%" />
-              <t-input v-model="form.cate_exclude" :label="$t('pages.setting.editSource.sift.rule.cateExclude')"
-                :placeholder="$t('pages.setting.editSource.sift.placeholder.cateExcludeTip')" class="input w-100%" />
-              <t-input v-model="form.reurl" :label="$t('pages.setting.editSource.sift.rule.link')"
-                :placeholder="$t('pages.setting.editSource.sift.placeholder.linkTip')" class="input w-100%" />
+              <t-input
+                v-model="form.class_name"
+                :label="$t('pages.setting.editSource.sift.rule.className')"
+                :placeholder="$t('pages.setting.editSource.sift.placeholder.classNameTip')"
+                class="input w-100%"
+              />
+              <t-input
+                v-model="form.class_url"
+                :label="$t('pages.setting.editSource.sift.rule.classUrl')"
+                :placeholder="$t('pages.setting.editSource.sift.placeholder.classUrlTip')"
+                class="input w-100%"
+              />
+              <t-input
+                v-model="form.class_parse"
+                :label="$t('pages.setting.editSource.sift.rule.class')"
+                :placeholder="$t('pages.setting.editSource.sift.placeholder.classParseTip')"
+                class="input w-100%"
+              />
+              <t-input
+                v-model="form.cate_exclude"
+                :label="$t('pages.setting.editSource.sift.rule.cateExclude')"
+                :placeholder="$t('pages.setting.editSource.sift.placeholder.cateExcludeTip')"
+                class="input w-100%"
+              />
+              <t-input
+                v-model="form.reurl"
+                :label="$t('pages.setting.editSource.sift.rule.link')"
+                :placeholder="$t('pages.setting.editSource.sift.placeholder.linkTip')"
+                class="input w-100%"
+              />
               <t-button block @click="actionClass">{{ $t('pages.setting.editSource.sift.rule.ctry') }}</t-button>
             </div>
             <div class="code-op-item card">
               <t-button block :loading="isVisible.batchFetchLoading" @click="batchResults">{{
-                $t('pages.setting.editSource.sift.rule.br') }}</t-button>
+                $t('pages.setting.editSource.sift.rule.br')
+              }}</t-button>
             </div>
             <div class="code-op-item card">
-              <t-textarea v-model="form.filter" :label="$t('pages.setting.editSource.sift.rule.filter')"
-                :placeholder="$t('pages.setting.editSource.sift.placeholder.filterTip')" class="input w-100%"
-                :autosize="{ minRows: 1 }" />
-              <t-textarea t v-model="form.filterInfo" :label="$t('pages.setting.editSource.sift.rule.filterInfo')"
-                :placeholder="$t('pages.setting.editSource.sift.placeholder.filterInfoTip')" class="input w-100%"
-                :autosize="{ minRows: 1 }" />
+              <t-textarea
+                v-model="form.filter"
+                :label="$t('pages.setting.editSource.sift.rule.filter')"
+                :placeholder="$t('pages.setting.editSource.sift.placeholder.filterTip')"
+                class="input w-100%"
+                :autosize="{ minRows: 1 }"
+              />
+              <t-textarea
+                v-model="form.filterInfo"
+                t
+                :label="$t('pages.setting.editSource.sift.rule.filterInfo')"
+                :placeholder="$t('pages.setting.editSource.sift.placeholder.filterInfoTip')"
+                class="input w-100%"
+                :autosize="{ minRows: 1 }"
+              />
               <t-button block @click="getMatchs">{{ $t('pages.setting.editSource.sift.rule.ms') }}</t-button>
 
-              <t-input v-model="form.exclude_keys" :label="$t('pages.setting.editSource.sift.rule.excludeKeys')"
-                :placeholder="$t('pages.setting.placeholder.splitForVerticalLine')" class="input w-100%" />
+              <t-input
+                v-model="form.exclude_keys"
+                :label="$t('pages.setting.editSource.sift.rule.excludeKeys')"
+                :placeholder="$t('pages.setting.placeholder.splitForVerticalLine')"
+                class="input w-100%"
+              />
 
               <!-- 动态创建的输入框列表 -->
-              <t-input v-for="(_, key, index) in form.matchs" v-model="form.matchs[key]" :label="key" :key="index"
-                :placeholder="$t('pages.setting.editSource.sift.rule.reg')" class="input w-100%" />
+              <t-input
+                v-for="(_, key, index) in form.matchs"
+                :key="index"
+                v-model="form.matchs[key]"
+                :label="key"
+                :placeholder="$t('pages.setting.editSource.sift.rule.reg')"
+                class="input w-100%"
+              />
 
               <!-- <t-input v-model="form.matchs.plot" :label="$t('pages.setting.editSource.sift.rule.plot')"
                 :placeholder="$t('pages.setting.editSource.sift.rule.reg')" class="input w-100%" />
@@ -122,26 +175,36 @@
         <div class="log-container">
           <div class="log-nav">
             <div class="nav-left">
-              <t-radio-group variant="default-filled" size="small" v-model="form.nav" @change="changeNav()">
+              <t-radio-group v-model="form.nav" variant="default-filled" size="small" @change="changeNav()">
                 <t-radio-button value="debug">{{ $t('pages.setting.editSource.sift.select.debug') }}</t-radio-button>
                 <t-radio-button value="source">{{ $t('pages.setting.editSource.sift.select.source') }}</t-radio-button>
               </t-radio-group>
             </div>
             <div class="nav-right">
-              <t-radio-group variant="default-filled" size="small" v-model="form.clickType.debug" @change="debugEvent()"
-                v-if="form.nav === 'debug'">
+              <t-radio-group
+                v-if="form.nav === 'debug'"
+                v-model="form.clickType.debug"
+                variant="default-filled"
+                size="small"
+                @change="debugEvent()"
+              >
                 <t-radio-button value="copy">{{ $t('pages.setting.editSource.sift.select.copy') }}</t-radio-button>
                 <t-radio-button value="encode">{{ $t('pages.setting.editSource.sift.select.encode') }}</t-radio-button>
               </t-radio-group>
-              <t-radio-group variant="default-filled" size="small" v-model="form.clickType.source"
-                @change="sourceEvent()" v-if="form.nav === 'source'">
+              <t-radio-group
+                v-if="form.nav === 'source'"
+                v-model="form.clickType.source"
+                variant="default-filled"
+                size="small"
+                @change="sourceEvent()"
+              >
                 <t-radio-button value="format">{{ $t('pages.setting.editSource.sift.select.format') }}</t-radio-button>
                 <t-radio-button value="reset">{{ $t('pages.setting.editSource.sift.select.reset') }}</t-radio-button>
               </t-radio-group>
             </div>
           </div>
           <div class="log-text">
-            <div class="log-box" id="siftLogBox" ref="siftLogBoxRef"></div>
+            <div id="siftLogBox" ref="siftLogBoxRef" class="log-box"></div>
           </div>
         </div>
       </div>
@@ -152,7 +215,7 @@
 <script setup lang="ts">
 import * as monaco from 'monaco-editor';
 import jsBeautify from 'js-beautify';
-import JSON5 from "json5";
+import JSON5 from 'json5';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { ExtensionIcon, Filter2Icon, TransformIcon } from 'tdesign-icons-vue-next';
@@ -173,14 +236,14 @@ const systemTheme = computed(() => {
 });
 
 const siftLogBoxRef = ref<HTMLElement | null>(null);
-let form = ref({
+const form = ref({
   codeType: 'html',
   content: {
     log: '',
     text: '',
     debug: '',
     source: '',
-    rule: ''
+    rule: '',
   },
   nav: 'debug',
   action: '',
@@ -190,12 +253,12 @@ let form = ref({
     header: '',
     body: '',
     url: '',
-    contentType: 'application/json'
+    contentType: 'application/json',
   },
   clickType: {
     log: '',
     debug: '',
-    source: ''
+    source: '',
   },
   class_parse: '',
   class_name: '',
@@ -218,7 +281,7 @@ let form = ref({
 
 const isVisible = reactive({
   reqParam: false,
-  batchFetchLoading: false
+  batchFetchLoading: false,
 });
 
 watch(
@@ -226,7 +289,7 @@ watch(
   (val) => {
     config.theme = val === 'light' ? 'vs' : 'vs-dark';
     changeTheme();
-  }
+  },
 );
 
 const changeTheme = () => {
@@ -253,7 +316,7 @@ self.MonacoEnvironment = {
   },
 };
 
-const codeThemeKey = 'code-theme';  // localStorage key
+const codeThemeKey = 'code-theme'; // localStorage key
 
 type WordWrapOptions = 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 interface EditorConfig {
@@ -287,7 +350,7 @@ const reqMethods = [
   {
     label: 'HEAD',
     value: 'HEAD',
-  }
+  },
 ];
 
 const reqEncode = [
@@ -346,7 +409,7 @@ const initEditor = () => {
       minimap: {
         enabled: false,
       },
-      fixedOverflowWidgets: true
+      fixedOverflowWidgets: true,
     });
     log.onDidChangeModelContent(() => {
       if (log) form.value.content.text = log.getValue();
@@ -358,7 +421,7 @@ const initEditor = () => {
 
 onMounted(() => {
   initEditor();
-})
+});
 
 onBeforeUnmount(() => {
   if (log) log.dispose();
@@ -369,19 +432,19 @@ const siftEvent = (key) => {
 };
 
 const demoEvent = () => {
-  form.value.req.url = "https://hapihd.com/index.php/vod/show/id/dianying.html";
+  form.value.req.url = 'https://hapihd.com/index.php/vod/show/id/dianying.html';
   form.value.class_parse = String.raw`.navbar-items li;a&&Text;a&&href;/(\w+).html`;
-  form.value.reurl = "https://hapihd.com/index.php/vod/show/id/fyclass.html";
-  form.value.cate_exclude = "更新|热搜榜";
-  form.value.filter = "body&&.scroll-box";
-  form.value.filterInfo = ";.module-item-title&&Text;body&&a;a&&Text;a&&href";
+  form.value.reurl = 'https://hapihd.com/index.php/vod/show/id/fyclass.html';
+  form.value.cate_exclude = '更新|热搜榜';
+  form.value.filter = 'body&&.scroll-box';
+  form.value.filterInfo = ';.module-item-title&&Text;body&&a;a&&Text;a&&href';
   form.value.matchs = {
     剧情: 'show(.*?)/id',
     地区: 'show(.*?)/id',
     语言: '(/lang.*?)\.html@@',
     年份: '(/year.*?)\.html@@',
     字母: '(/letter.*?)\.html@@',
-    排序: '(/by.*?)/id'
+    排序: '(/by.*?)/id',
   };
 };
 
@@ -403,15 +466,16 @@ const changeNav = async (nav = '', action = '') => {
       break;
     default:
       break;
-  };
+  }
 
   if (log) {
     monaco.editor.setModelLanguage(log.getModel()!, language);
     log.updateOptions({ readOnly });
 
-    const contentText = typeof form.value.content[nav] === 'object'
-      ? JSON5.stringify(form.value.content[nav], null, 2)
-      : form.value.content[nav];
+    const contentText =
+      typeof form.value.content[nav] === 'object'
+        ? JSON5.stringify(form.value.content[nav], null, 2)
+        : form.value.content[nav];
 
     form.value.content.text = contentText;
     log.setValue(contentText);
@@ -425,18 +489,18 @@ const getMatchs = () => {
   if (!filterInfo || !filter) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.inputNoFilterAndFilterInfo'));
     return;
-  };
+  }
 
   if (!contentHtml.trim()) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.sourceFirst'));
     return;
-  };
+  }
 
   try {
     const response = getFilters(contentHtml, '', filter, filterInfo, {}, exclude_keys);
     const updatedMatchs = response?.fl.reduce((acc, item) => {
       if (!matchs.hasOwnProperty(item)) {
-        acc[item] = "";
+        acc[item] = '';
       } else acc[item] = matchs[item];
       return acc;
     }, {});
@@ -449,7 +513,7 @@ const getMatchs = () => {
 
 const uniqueObjectsByProperty = (array, key) => {
   const map = new Map();
-  array.forEach(item => {
+  array.forEach((item) => {
     const keyValue = item[key];
     map.set(keyValue, item);
   });
@@ -457,11 +521,14 @@ const uniqueObjectsByProperty = (array, key) => {
 };
 
 const concatenateObjects = (array) => {
-  return array.reduce((accumulator, current) => {
-    accumulator.m = accumulator.m ? `${accumulator.m}&${current.m}` : current.m;
-    accumulator.title = accumulator.title ? `${accumulator.title}&${current.title}` : current.title;
-    return accumulator;
-  }, { m: '', title: '' });
+  return array.reduce(
+    (accumulator, current) => {
+      accumulator.m = accumulator.m ? `${accumulator.m}&${current.m}` : current.m;
+      accumulator.title = accumulator.title ? `${accumulator.title}&${current.title}` : current.title;
+      return accumulator;
+    },
+    { m: '', title: '' },
+  );
 };
 
 const actionClass = () => {
@@ -472,59 +539,69 @@ const actionClass = () => {
   if (!class_parse && !class_name && !class_url) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.inputNoClassParse'));
     return;
-  };
+  }
 
   if (!contentHtml.trim()) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.sourceFirst'));
     return;
-  };
-
-  let response = processCategories(contentHtml, class_parse, cate_exclude, reurl, url);
-  let set = new Set();
-  if (class_name && class_url) {
-    if (response.hasOwnProperty("m")) {
-      response.m += "&" + class_url;
-      response.title += "&" + class_name;
-    }
   }
 
-  if (Object.keys(response).length > 0) {
-    response.m.split("&").map((x, i) => {
-      set.add({ m: x, title: response.title.split("&")[i] })
-    });
+  try {
+    let response = processCategories(contentHtml, class_parse, cate_exclude, reurl, url);
+    const set = new Set();
+    if (class_name && class_url) {
+      if (response.hasOwnProperty('m')) {
+        response.m += '&' + class_url;
+        response.title += '&' + class_name;
+      }
+    }
 
-    let rs = uniqueObjectsByProperty(Array.from(set), 'm');
-    if (cate_exclude.length > 0) {
-      let excludeCategories = cate_exclude.split(/\|/).filter(e => e);
-      rs = rs.filter(x => !excludeCategories.some(s => s.includes(x.title)));
+    if (Object.keys(response).length > 0) {
+      response.m.split('&').map((x, i) => {
+        set.add({ m: x, title: response.title.split('&')[i] });
+      });
+
+      let rs = uniqueObjectsByProperty(Array.from(set), 'm');
+      if (cate_exclude.length > 0) {
+        const excludeCategories = cate_exclude.split(/\|/).filter((e) => e);
+        rs = rs.filter((x) => !excludeCategories.some((s) => s.includes(x.title)));
+      }
+
+      response = concatenateObjects(rs);
+    }
+
+    if (Object.keys(response).length == 0) {
+      if (class_name && class_url) {
+        response.m = class_url;
+        response.title = class_name;
+      }
+    }
+
+    const transformData = (data) => {
+      const titles = data.title.split('&');
+      const ms = data.m.split('&');
+
+      return titles.map((title, index) => ({
+        title: title.trim(),
+        id: ms[index].trim(),
+        surl: form.value.reurl.replace('fyclass', ms[index].trim()),
+      }));
     };
 
-    response = concatenateObjects(rs);
-  }
-
-  if (Object.keys(response).length == 0) {
-    if (class_name && class_url) {
-      response.m = class_url;
-      response.title = class_name;
+    form.value.class_name = response?.title || '';
+    form.value.class_url = response?.m || '';
+    if (response?.title && response?.m) {
+      const debugData = transformData(response);
+      form.value.content.debug = debugData;
+      form.value.classResult = debugData;
+    } else {
+      form.value.classResult = []; // 解析不出分类时置空，避免 transformData 对空对象抛 TypeError
     }
+    changeNav('debug', 'class');
+  } catch (err) {
+    console.log(`[editSource][sift][actionClass][err]`, err);
+    MessagePlugin.error(`${t('pages.setting.data.fail')}`);
   }
-
-  const transformData = (data) => {
-    const titles = data.title.split('&');
-    const ms = data.m.split('&');
-
-    return titles.map((title, index) => ({
-      title: title.trim(),
-      id: ms[index].trim(),
-      surl: form.value.reurl.replace("fyclass", ms[index].trim())
-    }));
-  };
-
-  if (response?.title && response?.m) form.value.content.debug = transformData(response);
-  form.value.class_name = response?.title || '';
-  form.value.class_url = response?.m || '';
-  form.value.classResult = transformData(response);
-  changeNav('debug', 'class');
 };
 
 const batchResults = async () => {
@@ -534,12 +611,12 @@ const batchResults = async () => {
   if (!filterInfo || !filter) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.inputNoFilterAndFilterInfo'));
     return;
-  };
+  }
 
   if (Object.keys(classResult).length == 0) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.classResultisEmpty'));
     return;
-  };
+  }
 
   try {
     isVisible.batchFetchLoading = true;
@@ -557,11 +634,11 @@ const batchResults = async () => {
 
     changeNav('debug', 'class');
   } catch (err) {
-    console.log(`[editSource][sift][batchResults][err]${err}`)
+    console.log(`[editSource][sift][batchResults][err]${err}`);
     MessagePlugin.error(`${t('pages.setting.data.fail')}`);
   } finally {
     isVisible.batchFetchLoading = false;
-  };
+  }
 };
 
 const batchFetch = async (obj) => {
@@ -569,11 +646,11 @@ const batchFetch = async (obj) => {
 
   try {
     const { parsedHeader, parsedBody } = prepareRequestOptions(method, header, body, contentType);
-    const promises = obj.map(x => getHtml(x.surl.trim(), method, encode, parsedHeader, parsedBody));
+    const promises = obj.map((x) => getHtml(x.surl.trim(), method, encode, parsedHeader, parsedBody));
     const responses = await Promise.all(promises);
     const results = responses.map((response, index) => ({
       id: obj[index].id,
-      body: response
+      body: response,
     }));
     return results;
   } catch (error) {
@@ -589,12 +666,12 @@ const actionFilter = () => {
   if (!filterInfo || !filter) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.inputNoFilterAndFilterInfo'));
     return;
-  };
+  }
 
   if (!contentHtml.trim()) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.sourceFirst'));
     return;
-  };
+  }
 
   const response = getFilters(contentHtml, '', filter, filterInfo, matchs, exclude_keys).filters;
 
@@ -609,14 +686,12 @@ const prepareRequestOptions = (method, header, body, contentType) => {
   if (method !== 'GET' && parsedBody) {
     parsedHeader['Content-Type'] = contentType;
     if (contentType === 'application/x-www-form-urlencoded') {
-      parsedBody instanceof URLSearchParams
-        ? parsedBody
-        : (parsedBody = new URLSearchParams(parsedBody));
+      parsedBody instanceof URLSearchParams ? parsedBody : (parsedBody = new URLSearchParams(parsedBody));
     }
   }
 
   let parseHeaderKeys: string[];
-  parseHeaderKeys = Object.keys(parsedHeader).map(it => it.toLowerCase());
+  parseHeaderKeys = Object.keys(parsedHeader).map((it) => it.toLowerCase());
   if (!parseHeaderKeys.includes('accept')) {
     parsedHeader['accept'] = '*/*';
   }
@@ -630,7 +705,7 @@ const getSource = async () => {
   if (!url) {
     MessagePlugin.warning(t('pages.setting.editSource.sift.message.htmlNoUrl'));
     return;
-  };
+  }
 
   try {
     const { parsedHeader, parsedBody } = prepareRequestOptions(method, header, body, contentType);
@@ -649,7 +724,6 @@ const showDialog = (key: string) => {
 };
 
 const reqCancel = () => {
-  nextTick(() => (isVisible.reqParam = true));
   form.value.req.header = '';
   form.value.req.body = '';
   form.value.req.encode = 'UTF-8';
@@ -659,7 +733,7 @@ const reqCancel = () => {
 const debugEvent = async () => {
   try {
     const type = form.value.clickType.debug;
-    const str: any = log ? log.getValue() : "";
+    const str: any = log ? log.getValue() : '';
 
     if (type === 'copy') {
       await copyToClipboardApi(str);
@@ -672,11 +746,11 @@ const debugEvent = async () => {
 
     MessagePlugin.info(`${t('pages.setting.data.success')}`);
   } catch (err) {
-    console.log(`[editSource][sift][debugEvent][err]${err}`)
+    console.log(`[editSource][sift][debugEvent][err]${err}`);
     MessagePlugin.error(`${t('pages.setting.data.fail')}`);
   } finally {
-    form.value.clickType.debug = "";
-  };
+    form.value.clickType.debug = '';
+  }
 };
 
 const sourceEvent = () => {
@@ -687,19 +761,18 @@ const sourceEvent = () => {
       log?.setValue(html);
     } else if (type === 'format') {
       const formattedHtml: any = jsBeautify.html(html, {
-        preserve_newlines: false
+        preserve_newlines: false,
       });
       log?.setValue(formattedHtml);
-    };
+    }
 
     MessagePlugin.info(`${t('pages.setting.data.success')}`);
   } catch (err) {
     console.log(`[editSource][sift][sourceEvent][err]${err}`);
     MessagePlugin.error(`${t('pages.setting.data.fail')}`);
-
   } finally {
-    form.value.clickType.source = "";
-  };
+    form.value.clickType.source = '';
+  }
 };
 </script>
 
@@ -726,7 +799,7 @@ const sourceEvent = () => {
       align-items: center;
 
       .title {
-        margin-right: 5px
+        margin-right: 5px;
       }
     }
 
@@ -955,8 +1028,8 @@ const sourceEvent = () => {
             margin-right: var(--td-comp-margin-s);
           }
 
-          .button {}
-
+          .button {
+          }
 
           .w-100\% {
             width: calc((100% - 50px - (var(--td-comp-margin-s))));
@@ -1048,7 +1121,7 @@ const sourceEvent = () => {
   height: 100%;
   border-radius: var(--td-radius-default);
 
-  pre[class*="language-"] {
+  pre[class*='language-'] {
     margin: 0;
     height: 100%;
     box-shadow: none;
@@ -1064,7 +1137,6 @@ const sourceEvent = () => {
     }
   }
 }
-
 
 :deep(.t-input-adornment) {
   width: 100%;
