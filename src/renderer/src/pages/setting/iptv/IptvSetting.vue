@@ -23,8 +23,14 @@
       </div>
       <div class="right-operation-container">
         <div class="search">
-          <t-input v-model="searchValue" :placeholder="$t('pages.setting.header.search')" clearable
-            @enter="refreshEvent(true)" @clear="refreshEvent(true)" class="search-bar">
+          <t-input
+            v-model="searchValue"
+            :placeholder="$t('pages.setting.header.search')"
+            clearable
+            class="search-bar"
+            @enter="refreshEvent(true)"
+            @clear="refreshEvent(true)"
+          >
             <template #prefix-icon>
               <search-icon size="16px" />
             </template>
@@ -32,22 +38,36 @@
         </div>
       </div>
     </div>
-    <t-table row-key="id" height="calc(100vh - 172px)" :data="iptvTableConfig.data" :sort="iptvTableConfig.sort"
-      :filter-value="iptvTableConfig.filter" :columns="COLUMNS" :hover="true" :pagination="pagination"
-      @sort-change="rehandleSortChange" @filter-change="rehandleFilterChange" @select-change="rehandleSelectChange"
-      @page-change="rehandlePageChange">
+    <t-table
+      row-key="id"
+      height="calc(100vh - 172px)"
+      :data="iptvTableConfig.data"
+      :sort="iptvTableConfig.sort"
+      :filter-value="iptvTableConfig.filter"
+      :columns="COLUMNS"
+      :hover="true"
+      :pagination="pagination"
+      @sort-change="rehandleSortChange"
+      @filter-change="rehandleFilterChange"
+      @select-change="rehandleSelectChange"
+      @page-change="rehandlePageChange"
+    >
       <template #name="{ row }">
-        <t-badge v-if="row.id === iptvTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{ row.name
-          }}</t-badge>
+        <t-badge v-if="row.id === iptvTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{
+          row.name
+        }}</t-badge>
         <span v-else>{{ row.name }}</span>
       </template>
       <template #type="{ row }">
         <t-tag v-if="row.type === 'remote'" theme="success" shape="round" variant="light-outline">{{
-          $t('pages.setting.table.iptv.remote') }}</t-tag>
+          $t('pages.setting.table.iptv.remote')
+        }}</t-tag>
         <t-tag v-else-if="row.type === 'local'" theme="warning" shape="round" variant="light-outline">{{
-          $t('pages.setting.table.iptv.local') }}</t-tag>
+          $t('pages.setting.table.iptv.local')
+        }}</t-tag>
         <t-tag v-else-if="row.type === 'batches'" theme="danger" shape="round" variant="light-outline">{{
-          $t('pages.setting.table.iptv.manual') }}</t-tag>
+          $t('pages.setting.table.iptv.manual')
+        }}</t-tag>
       </template>
       <template #isActive="{ row }">
         <t-switch v-model="row.isActive" @change="switchStatus(row)" />
@@ -71,7 +91,7 @@
 <script setup lang="ts">
 import _ from 'lodash';
 import { AddIcon, CheckIcon, PoweroffIcon, RemoveIcon, SearchIcon } from 'tdesign-icons-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { onActivated, onMounted, ref, reactive, watch } from 'vue';
 
 import { t } from '@/locales';
@@ -88,7 +108,7 @@ import DialogEditView from './components/DialogEdit.vue';
 // Define item form data & dialog status
 const isVisible = reactive({
   dialogAdd: false,
-  dialogEdit: false
+  dialogEdit: false,
 });
 
 const searchValue = ref();
@@ -110,7 +130,7 @@ const iptvTableConfig = ref({
     type: [],
   },
   select: [],
-  default: ''
+  default: '',
 });
 
 watch(
@@ -119,9 +139,10 @@ watch(
     if (oldValue.length > 0) {
       emitter.emit('refreshIptvConfig');
     }
-  }, {
-  deep: true
-}
+  },
+  {
+    deep: true,
+  },
 );
 
 const rehandleSelectChange = (val) => {
@@ -168,18 +189,19 @@ const rehandleFilterChange = (filters, ctx) => {
 const getData = async () => {
   try {
     const res = await fetchIptvPage(searchValue.value);
-    if (_.has(res, 'default') && res["default"]) {
+    if (_.has(res, 'default') && res['default']) {
       iptvTableConfig.value.default = res.default;
     }
-    if (_.has(res, 'data') && res["data"]) {
+    if (_.has(res, 'data') && res['data']) {
       iptvTableConfig.value.data = res.data;
       iptvTableConfig.value.rawData = res.data;
     }
-    if (_.has(res, 'total') && res["total"]) {
+    if (_.has(res, 'total') && res['total']) {
       pagination.total = res.total;
     }
   } catch (e) {
-    console.log(e);
+    console.log('[setting][iptv][getData][error]', e);
+    MessagePlugin.error(t('pages.setting.message.loadFail'));
   }
 };
 
@@ -207,7 +229,7 @@ const defaultSet = () => {
       type: [],
     },
     select: [],
-    default: ''
+    default: '',
   };
 };
 
@@ -224,14 +246,20 @@ const refreshEvent = (page = false) => {
 };
 
 const editEvent = (row) => {
-  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1)
+  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1);
   formData.value = iptvTableConfig.value.data[index];
   isVisible.dialogEdit = true;
 };
 
 const switchStatus = async (row) => {
   console.log(row.isActive);
-  updateIptvItem(row.id, { isActive: row.isActive });
+  try {
+    await updateIptvItem(row.id, { isActive: row.isActive });
+  } catch (err) {
+    row.isActive = !row.isActive;
+    console.log('[setting][iptv][switchStatus][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
 };
 
 const tableUpdateIsActive = (select, isActiveValue: boolean) => {
@@ -264,9 +292,9 @@ const tableAdd = (item) => {
   iptvTableConfig.value = { ...iptvTableConfig.value, data, rawData };
 };
 
-const removeEvent = (row) => {
+const removeEvent = async (row) => {
   try {
-    delIptvItem(row.id);
+    await delIptvItem(row.id);
     tableDelete([row.id]);
     pagination.total -= 1;
     MessagePlugin.success(t('pages.setting.form.success'));
@@ -276,7 +304,19 @@ const removeEvent = (row) => {
   }
 };
 
-const handleAllDataEvent = (type) => {
+const doBatchDelete = async (select) => {
+  try {
+    await delIptvItem(select);
+    tableDelete(select);
+    pagination.total -= select.length;
+    MessagePlugin.success(t('pages.setting.form.success'));
+  } catch (err) {
+    console.log('[setting][iptv][doBatchDelete][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
+};
+
+const handleAllDataEvent = async (type) => {
   try {
     const { select } = iptvTableConfig.value;
     if (select.length === 0) {
@@ -284,15 +324,23 @@ const handleAllDataEvent = (type) => {
       return;
     }
     if (type === 'enable') {
-      updateIptvStatus('enable', select);
+      await updateIptvStatus('enable', select);
       tableUpdateIsActive(select, true);
     } else if (type === 'disable') {
-      updateIptvStatus('disable', select);
+      await updateIptvStatus('disable', select);
       tableUpdateIsActive(select, false);
     } else if (type === 'delete') {
-      delIptvItem(select);
-      tableDelete(select);
-      pagination.total -= select.length;
+      const dialog = DialogPlugin.confirm({
+        header: t('pages.setting.header.delete'),
+        body: t('pages.setting.table.deleteTip'),
+        confirmBtn: t('pages.setting.dialog.confirm'),
+        cancelBtn: t('pages.setting.dialog.cancel'),
+        onConfirm: () => {
+          dialog.destroy();
+          doBatchDelete(select);
+        },
+      });
+      return;
     }
 
     MessagePlugin.success(t('pages.setting.form.success'));
@@ -300,7 +348,7 @@ const handleAllDataEvent = (type) => {
     console.log('[setting][iptv][handleAllDataEvent][error]', err);
     MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
   }
-}
+};
 
 const isSubmitting = ref(false);
 

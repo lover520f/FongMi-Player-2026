@@ -4,7 +4,7 @@
 const { execSync } = require('child_process');
 const path = require('path');
 
-const BASELINE = { errors: 1265, warnings: 19699 };
+const BASELINE = { errors: 1264, warnings: 17897 };
 
 function runEslintJson() {
   const env = { ...process.env };

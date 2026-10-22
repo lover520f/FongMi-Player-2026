@@ -27,8 +27,14 @@
       </div>
       <div class="right-operation-container">
         <div class="search">
-          <t-input v-model="searchValue" :placeholder="$t('pages.setting.header.search')" clearable
-            @enter="refreshEvent(true)" @clear="refreshEvent(true)" class="search-bar">
+          <t-input
+            v-model="searchValue"
+            :placeholder="$t('pages.setting.header.search')"
+            clearable
+            class="search-bar"
+            @enter="refreshEvent(true)"
+            @clear="refreshEvent(true)"
+          >
             <template #prefix-icon>
               <search-icon size="16px" />
             </template>
@@ -36,12 +42,22 @@
         </div>
       </div>
     </div>
-    <t-table row-key="id" :data="driveTableConfig.data" :sort="driveTableConfig.sort" height="calc(100vh - 172px)"
-      :columns="COLUMNS" :hover="true" :pagination="pagination" @sort-change="rehandleSortChange"
-      @select-change="rehandleSelectChange" @page-change="rehandlePageChange">
+    <t-table
+      row-key="id"
+      :data="driveTableConfig.data"
+      :sort="driveTableConfig.sort"
+      height="calc(100vh - 172px)"
+      :columns="COLUMNS"
+      :hover="true"
+      :pagination="pagination"
+      @sort-change="rehandleSortChange"
+      @select-change="rehandleSelectChange"
+      @page-change="rehandlePageChange"
+    >
       <template #name="{ row }">
-        <t-badge v-if="row.id === driveTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{ row.name
-          }}</t-badge>
+        <t-badge v-if="row.id === driveTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{
+          row.name
+        }}</t-badge>
         <span v-else>{{ row.name }}</span>
       </template>
       <template #isActive="{ row }">
@@ -67,7 +83,7 @@
 <script setup lang="ts">
 import _ from 'lodash';
 import { AddIcon, CheckIcon, PoweroffIcon, RemoveIcon, SearchIcon, UserIcon } from 'tdesign-icons-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { onActivated, onMounted, ref, reactive, watch } from 'vue';
 
 import { t } from '@/locales';
@@ -107,7 +123,7 @@ const driveTableConfig = ref({
     type: [],
   },
   select: [],
-  default: ''
+  default: '',
 });
 
 watch(
@@ -116,9 +132,10 @@ watch(
     if (oldValue.length > 0) {
       emitter.emit('refreshDriveConfig');
     }
-  }, {
-  deep: true
-}
+  },
+  {
+    deep: true,
+  },
 );
 
 const rehandleSelectChange = (val) => {
@@ -140,18 +157,19 @@ const rehandleSortChange = (sortVal, options) => {
 const getData = async () => {
   try {
     const res = await fetchDrivePage(searchValue.value);
-    if (_.has(res, 'default') && res["default"]) {
+    if (_.has(res, 'default') && res['default']) {
       driveTableConfig.value.default = res.default;
     }
-    if (_.has(res, 'data') && res["data"]) {
+    if (_.has(res, 'data') && res['data']) {
       driveTableConfig.value.data = res.data;
       driveTableConfig.value.rawData = res.data;
     }
-    if (_.has(res, 'total') && res["total"]) {
+    if (_.has(res, 'total') && res['total']) {
       pagination.total = res.total;
     }
   } catch (e) {
-    console.log(e);
+    console.log('[setting][drive][getData][error]', e);
+    MessagePlugin.error(t('pages.setting.message.loadFail'));
   }
 };
 
@@ -179,7 +197,7 @@ const defaultSet = () => {
       type: [],
     },
     select: [],
-    default: ''
+    default: '',
   };
 };
 
@@ -196,14 +214,20 @@ const refreshEvent = (page = false) => {
 };
 
 const editEvent = (row) => {
-  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1)
+  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1);
   formData.value = driveTableConfig.value.data[index];
   isVisible.dialogEdit = true;
 };
 
-const switchStatus = (row) => {
+const switchStatus = async (row) => {
   console.log(row.isActive);
-  updateDriveItem(row.id, { isActive: row.isActive });
+  try {
+    await updateDriveItem(row.id, { isActive: row.isActive });
+  } catch (err) {
+    row.isActive = !row.isActive;
+    console.log('[setting][drive][switchStatus][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
 };
 
 const tableUpdateIsActive = (select, isActiveValue: boolean) => {
@@ -236,9 +260,9 @@ const tableDelete = (select) => {
   });
 };
 
-const removeEvent = (row) => {
+const removeEvent = async (row) => {
   try {
-    delDriveItem(row.id);
+    await delDriveItem(row.id);
     tableDelete([row.id]);
     pagination.total -= 1;
     MessagePlugin.success(t('pages.setting.form.success'));
@@ -248,7 +272,20 @@ const removeEvent = (row) => {
   }
 };
 
-const handleAllDataEvent = (type) => {
+const doBatchDelete = async (select) => {
+  try {
+    await delDriveItem(select);
+    tableDelete(select);
+    pagination.total -= select.length;
+    refreshEvent();
+    MessagePlugin.success(t('pages.setting.form.success'));
+  } catch (err) {
+    console.log('[setting][drive][doBatchDelete][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
+};
+
+const handleAllDataEvent = async (type) => {
   try {
     const { select } = driveTableConfig.value;
     if (select.length === 0) {
@@ -256,27 +293,35 @@ const handleAllDataEvent = (type) => {
       return;
     }
     if (type === 'enable') {
-      updateDriveStatus('enable', select);
+      await updateDriveStatus('enable', select);
       tableUpdateIsActive(select, true);
     } else if (type === 'disable') {
-      updateDriveStatus('disable', select);
+      await updateDriveStatus('disable', select);
       tableUpdateIsActive(select, false);
     } else if (type === 'delete') {
-      delDriveItem(select);
-      tableDelete(select);
-      pagination.total -= select.length;
+      const dialog = DialogPlugin.confirm({
+        header: t('pages.setting.header.delete'),
+        body: t('pages.setting.table.deleteTip'),
+        confirmBtn: t('pages.setting.dialog.confirm'),
+        cancelBtn: t('pages.setting.dialog.cancel'),
+        onConfirm: () => {
+          dialog.destroy();
+          doBatchDelete(select);
+        },
+      });
+      return;
     }
     refreshEvent();
     MessagePlugin.success(t('pages.setting.form.success'));
   } catch (err) {
-    console.log('[setting][ananlyze][handleAllDataEvent][error]', err);
+    console.log('[setting][drive][handleAllDataEvent][error]', err);
     MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
   }
-}
+};
 
 const defaultEvent = async (row) => {
   try {
-    await setDefault("defaultDrive", row.id)
+    await setDefault('defaultDrive', row.id);
     driveTableConfig.value.default = row.id;
     emitter.emit('refreshDriveConfig');
     MessagePlugin.success(t('pages.setting.form.success'));

@@ -238,7 +238,9 @@ export default {
     windowPositionOff: 'WindowPosition turn off',
     networkAddress: 'Network address',
     networkCheckError: 'Network status detection failed',
+    noSelectData: 'Please select data first',
     checking: 'Please wait for the completion of status batch detection',
+    loadFail: 'Load failed',
   },
   ad: {
     title: 'Better on Hipy',

@@ -31,8 +31,14 @@
       </div>
       <div class="right-operation-container">
         <div class="search">
-          <t-input v-model="searchValue" :placeholder="$t('pages.setting.header.search')" clearable
-            @enter="refreshEvent(true)" @clear="refreshEvent(true)" class="search-bar">
+          <t-input
+            v-model="searchValue"
+            :placeholder="$t('pages.setting.header.search')"
+            clearable
+            class="search-bar"
+            @enter="refreshEvent(true)"
+            @clear="refreshEvent(true)"
+          >
             <template #prefix-icon>
               <search-icon size="16px" />
             </template>
@@ -40,13 +46,24 @@
         </div>
       </div>
     </div>
-    <t-table row-key="id" height="calc(100vh - 172px)" :data="siteTableConfig.data" :sort="siteTableConfig.sort"
-      :filter-value="siteTableConfig.filter" :columns="COLUMNS" :hover="true" :pagination="pagination"
-      @sort-change="rehandleSortChange" @filter-change="rehandleFilterChange" @select-change="rehandleSelectChange"
-      @page-change="rehandlePageChange">
+    <t-table
+      row-key="id"
+      height="calc(100vh - 172px)"
+      :data="siteTableConfig.data"
+      :sort="siteTableConfig.sort"
+      :filter-value="siteTableConfig.filter"
+      :columns="COLUMNS"
+      :hover="true"
+      :pagination="pagination"
+      @sort-change="rehandleSortChange"
+      @filter-change="rehandleFilterChange"
+      @select-change="rehandleSelectChange"
+      @page-change="rehandlePageChange"
+    >
       <template #name="{ row }">
-        <t-badge v-if="row.id === siteTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{ row.name
-          }}</t-badge>
+        <t-badge v-if="row.id === siteTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{
+          row.name
+        }}</t-badge>
         <span v-else>{{ row.name }}</span>
       </template>
       <template #isActive="{ row }">
@@ -59,11 +76,14 @@
       </template>
       <template #search="{ row }">
         <t-tag v-if="row.search === 0" shape="round" theme="danger" variant="light-outline">{{
-          $t('pages.setting.table.site.close') }}</t-tag>
+          $t('pages.setting.table.site.close')
+        }}</t-tag>
         <t-tag v-else-if="row.search === 1" theme="success" shape="round" variant="light-outline">{{
-          $t('pages.setting.table.site.together') }}</t-tag>
+          $t('pages.setting.table.site.together')
+        }}</t-tag>
         <t-tag v-else-if="row.search === 2" theme="warning" shape="round" variant="light-outline">{{
-          $t('pages.setting.table.site.local') }}</t-tag>
+          $t('pages.setting.table.site.local')
+        }}</t-tag>
       </template>
       <template #type="{ row }">
         <span v-if="row.type === 0">cms[xml]</span>
@@ -78,8 +98,9 @@
       <template #op="slotProps">
         <t-space>
           <t-link theme="primary" @click="defaultEvent(slotProps.row)">{{ $t('pages.setting.table.default') }}</t-link>
-          <t-link theme="primary" @click="checkSingleEvent(slotProps.row)">{{ $t('pages.setting.table.check')
-            }}</t-link>
+          <t-link theme="primary" @click="checkSingleEvent(slotProps.row)">{{
+            $t('pages.setting.table.check')
+          }}</t-link>
           <t-link theme="primary" @click="editEvent(slotProps)">{{ $t('pages.setting.table.edit') }}</t-link>
           <t-popconfirm :content="$t('pages.setting.table.deleteTip')" @confirm="removeEvent(slotProps.row)">
             <t-link theme="danger">{{ $t('pages.setting.table.delete') }}</t-link>
@@ -89,8 +110,13 @@
     </t-table>
     <dialog-add-view v-model:visible="isVisible.dialogAdd" :group="siteTableConfig.group" @add-table-data="tableAdd" />
     <dialog-edit-view v-model:visible="isVisible.dialogEdit" :data="formData" :group="siteTableConfig.group" />
-    <t-dialog v-model:visible="isVisible.dialogGateway" :header="$t('pages.setting.gateway.title')" placement="center"
-      :footer="false" :width="520">
+    <t-dialog
+      v-model:visible="isVisible.dialogGateway"
+      :header="$t('pages.setting.gateway.title')"
+      placement="center"
+      :footer="false"
+      :width="520"
+    >
       <template #body>
         <div class="dialog-container-padding">
           <p class="content" style="margin-bottom: 12px; opacity: 0.75">{{ $t('pages.setting.gateway.tip') }}</p>
@@ -128,14 +154,29 @@
 <script setup lang="ts">
 import _ from 'lodash';
 import PQueue from 'p-queue';
-import { AddIcon, CheckIcon, LinkIcon, PoweroffIcon, RefreshIcon, RemoveIcon, SearchIcon } from 'tdesign-icons-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import {
+  AddIcon,
+  CheckIcon,
+  LinkIcon,
+  PoweroffIcon,
+  RefreshIcon,
+  RemoveIcon,
+  SearchIcon,
+} from 'tdesign-icons-vue-next';
+import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { onActivated, onMounted, ref, reactive, watch } from 'vue';
 
 import { t } from '@/locales';
 import { setDefault } from '@/api/setting';
 import { fetchGatewaySettings } from '@/api/gateway';
-import { fetchSitePage, fetchSiteGroup, updateSiteItem, updateSiteStatus, delSiteItem, syncGatewaySites } from '@/api/site';
+import {
+  fetchSitePage,
+  fetchSiteGroup,
+  updateSiteItem,
+  updateSiteStatus,
+  delSiteItem,
+  syncGatewaySites,
+} from '@/api/site';
 import { checkValid } from '@/utils/cms';
 import emitter from '@/utils/emitter';
 
@@ -149,7 +190,7 @@ const isVisible = reactive({
   dialogAdd: false,
   dialogEdit: false,
   dialogGateway: false,
-})
+});
 
 const gatewayForm = reactive({
   configUrl: '',
@@ -241,7 +282,7 @@ const siteTableConfig = ref({
   },
   select: [],
   default: '',
-  group: []
+  group: [],
 });
 
 const queue = new PQueue({ concurrency: 5 }); // 设置并发限制为5
@@ -256,40 +297,42 @@ watch(
     if (oldValue.length > 0) {
       emitter.emit('refreshFilmConfig', 111);
     }
-  }, {
-  deep: true
-}
+  },
+  {
+    deep: true,
+  },
 );
 
 // Business Processing
 const getData = async () => {
   try {
     const res = await fetchSitePage(searchValue.value);
-    if (_.has(res, 'default') && res["default"]) {
+    if (_.has(res, 'default') && res['default']) {
       siteTableConfig.value.default = res.default;
     }
-    if (_.has(res, 'data') && res["data"]) {
+    if (_.has(res, 'data') && res['data']) {
       siteTableConfig.value.data = res.data;
       siteTableConfig.value.rawData = res.data;
     }
-    if (_.has(res, 'total') && res["total"]) {
+    if (_.has(res, 'total') && res['total']) {
       pagination.total = res.total;
     }
   } catch (e) {
-    console.log(e);
+    console.log('[setting][site][getData][error]', e);
+    MessagePlugin.error(t('pages.setting.message.loadFail'));
   }
 };
 
 const getGroup = async () => {
   try {
     const res = await fetchSiteGroup();
-    if (_.has(res, 'data') && res["data"]) {
+    if (_.has(res, 'data') && res['data']) {
       siteTableConfig.value.group = res.data;
     }
   } catch (e) {
     console.log(e);
   }
-}
+};
 
 onMounted(() => {
   getData();
@@ -317,7 +360,7 @@ const defaultSet = () => {
     },
     select: [],
     default: '',
-    group: []
+    group: [],
   };
 };
 
@@ -338,15 +381,15 @@ const refreshEvent = (page = false) => {
 // op
 const checkAllSite = async (select) => {
   try {
-    let checkData: any = [];
+    const checkData: any = [];
     const { data } = siteTableConfig.value;
 
     select.forEach((item) => {
-      const res = _.find(data, { id: item })
-      checkData.push(res)
+      const res = _.find(data, { id: item });
+      checkData.push(res);
     });
 
-    await Promise.all(checkData.map(item => queue.add(() => checkSingleEvent(item, true))));
+    await Promise.all(checkData.map((item) => queue.add(() => checkSingleEvent(item, true))));
   } catch (err) {
     console.error('[setting][site][checkAllSite][error]', err);
     throw err;
@@ -355,20 +398,33 @@ const checkAllSite = async (select) => {
 
 const checkSingleEvent = async (row, all = false) => {
   let isActive: boolean = row.isActive;
-  if (row.type === 7) {
-    // t3 依赖 worker 全局态，检测成本高，保持跳过
-    row.resource = -1;
-  } else {
-    // type8 catvod[api] 与 cms 一样可走 fetchClassify 检测
-    const { status, resource } = await checkValid(row);
-    row.isActive = isActive = status;
-    row.resource = resource;
-    updateSiteItem(row.id, { isActive: row.isActive });
-  };
+  try {
+    if (row.type === 7) {
+      // t3 依赖 worker 全局态，检测成本高，保持跳过
+      row.resource = -1;
+    } else {
+      // type8 catvod[api] 与 cms 一样可走 fetchClassify 检测
+      const { status, resource } = await checkValid(row);
+      row.isActive = isActive = status;
+      row.resource = resource;
+      await updateSiteItem(row.id, { isActive: row.isActive });
+    }
 
-  if (!all) {
-    MessagePlugin.success(t('pages.setting.form.success'));
-  };
+    if (!all) {
+      if (isActive) {
+        MessagePlugin.success(t('pages.setting.form.success'));
+      } else {
+        MessagePlugin.warning(`${t('pages.setting.table.check')}: ${t('pages.setting.form.fail')}`);
+      }
+    }
+  } catch (err) {
+    console.log('[setting][site][checkSingleEvent][error]', err);
+    if (!all) {
+      MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+    } else {
+      throw err;
+    }
+  }
 
   return isActive;
 };
@@ -410,14 +466,20 @@ const rehandleFilterChange = (filters, ctx) => {
 };
 
 const editEvent = (row) => {
-  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1)
+  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1);
   formData.value = siteTableConfig.value.data[index];
   isVisible.dialogEdit = true;
 };
 
 const switchStatus = async (row) => {
   console.log(row.isActive);
-  updateSiteItem(row.id, { isActive: row.isActive });
+  try {
+    await updateSiteItem(row.id, { isActive: row.isActive });
+  } catch (err) {
+    row.isActive = !row.isActive;
+    console.log('[setting][site][switchStatus][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
 };
 
 const tableUpdateIsActive = (select, isActiveValue: boolean) => {
@@ -452,13 +514,25 @@ const tableAdd = (item) => {
 
 const removeEvent = async (row) => {
   try {
-    delSiteItem(row.id);
+    await delSiteItem(row.id);
     tableDelete([row.id]);
     pagination.total -= 1;
     getGroup();
     MessagePlugin.success(t('pages.setting.form.success'));
   } catch (err) {
     console.log('[setting][site][removeEvent][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
+};
+
+const doBatchDelete = async (select) => {
+  try {
+    await delSiteItem(select);
+    tableDelete(select);
+    pagination.total -= select.length;
+    MessagePlugin.success(t('pages.setting.form.success'));
+  } catch (err) {
+    console.log('[setting][site][doBatchDelete][error]', err);
     MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
   }
 };
@@ -471,15 +545,23 @@ const handleAllDataEvent = async (type) => {
       return;
     }
     if (type === 'enable') {
-      updateSiteStatus('enable', select);
+      await updateSiteStatus('enable', select);
       tableUpdateIsActive(select, true);
     } else if (type === 'disable') {
-      updateSiteStatus('disable', select);
+      await updateSiteStatus('disable', select);
       tableUpdateIsActive(select, false);
     } else if (type === 'delete') {
-      delSiteItem(select);
-      tableDelete(select);
-      pagination.total -= select.length;
+      const dialog = DialogPlugin.confirm({
+        header: t('pages.setting.header.delete'),
+        body: t('pages.setting.table.deleteTip'),
+        confirmBtn: t('pages.setting.dialog.confirm'),
+        cancelBtn: t('pages.setting.dialog.cancel'),
+        onConfirm: () => {
+          dialog.destroy();
+          doBatchDelete(select);
+        },
+      });
+      return;
     } else if (type === 'check') {
       MessagePlugin.info(t('pages.setting.message.checking'));
       await checkAllSite(select);
@@ -490,11 +572,11 @@ const handleAllDataEvent = async (type) => {
     console.log('[setting][site][handleAllDataEvent][error]', err);
     MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
   }
-}
+};
 
 const defaultEvent = async (row) => {
   try {
-    await setDefault("defaultSite", row.id);
+    await setDefault('defaultSite', row.id);
     siteTableConfig.value.default = row.id;
     emitter.emit('refreshFilmConfig');
     MessagePlugin.success(t('pages.setting.form.success'));

@@ -27,8 +27,14 @@
       </div>
       <div class="right-operation-container">
         <div class="search">
-          <t-input v-model="searchValue" :placeholder="$t('pages.setting.header.search')" clearable
-            @enter="refreshEvent(true)" @clear="refreshEvent(true)" class="search-bar">
+          <t-input
+            v-model="searchValue"
+            :placeholder="$t('pages.setting.header.search')"
+            clearable
+            class="search-bar"
+            @enter="refreshEvent(true)"
+            @clear="refreshEvent(true)"
+          >
             <template #prefix-icon>
               <search-icon size="16px" />
             </template>
@@ -36,20 +42,33 @@
         </div>
       </div>
     </div>
-    <t-table row-key="id" height="calc(100vh - 172px)" :data="analyzeTableConfig.data" :sort="analyzeTableConfig.sort"
-      :filter-value="analyzeTableConfig.filter" :columns="COLUMNS" :hover="true" :pagination="pagination"
-      @sort-change="rehandleSortChange" @filter-change="rehandleFilterChange" @select-change="rehandleSelectChange"
-      @page-change="rehandlePageChange">
+    <t-table
+      row-key="id"
+      height="calc(100vh - 172px)"
+      :data="analyzeTableConfig.data"
+      :sort="analyzeTableConfig.sort"
+      :filter-value="analyzeTableConfig.filter"
+      :columns="COLUMNS"
+      :hover="true"
+      :pagination="pagination"
+      @sort-change="rehandleSortChange"
+      @filter-change="rehandleFilterChange"
+      @select-change="rehandleSelectChange"
+      @page-change="rehandlePageChange"
+    >
       <template #name="{ row }">
-        <t-badge v-if="row.id === analyzeTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{ row.name
-          }}</t-badge>
+        <t-badge v-if="row.id === analyzeTableConfig.default" size="small" :offset="[0, 3]" count="默" dot>{{
+          row.name
+        }}</t-badge>
         <span v-else>{{ row.name }}</span>
       </template>
       <template #type="{ row }">
         <t-tag v-if="row.type === 0" shape="round" theme="danger" variant="light-outline">{{
-          $t('pages.setting.table.analyze.web') }}</t-tag>
+          $t('pages.setting.table.analyze.web')
+        }}</t-tag>
         <t-tag v-else-if="row.type === 1" theme="success" shape="round" variant="light-outline">{{
-          $t('pages.setting.table.analyze.json') }}</t-tag>
+          $t('pages.setting.table.analyze.json')
+        }}</t-tag>
       </template>
       <template #isActive="{ row }">
         <t-switch v-model="row.isActive" @change="switchStatus(row)" />
@@ -76,7 +95,7 @@
 <script setup lang="ts">
 import _ from 'lodash';
 import { AddIcon, CheckIcon, DiscountIcon, PoweroffIcon, RemoveIcon, SearchIcon } from 'tdesign-icons-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { onActivated, onMounted, ref, reactive, watch } from 'vue';
 
 import { t } from '@/locales';
@@ -95,7 +114,7 @@ const isVisible = reactive({
   dialogAdd: false,
   dialogEdit: false,
   dialogFlag: false,
-})
+});
 
 const formData = ref();
 const searchValue = ref();
@@ -119,7 +138,7 @@ const analyzeTableConfig = ref({
   select: [],
   default: '',
   group: [],
-  flag: []
+  flag: [],
 });
 
 watch(
@@ -128,9 +147,10 @@ watch(
     if (oldValue.length > 0) {
       emitter.emit('refreshAnalyzeConfig');
     }
-  }, {
-  deep: true
-}
+  },
+  {
+    deep: true,
+  },
 );
 
 const rehandleSelectChange = (val) => {
@@ -163,7 +183,7 @@ const defaultSet = () => {
     select: [],
     default: '',
     group: [],
-    flag: []
+    flag: [],
   };
 };
 
@@ -219,35 +239,42 @@ const rehandleFilterChange = (filters, ctx) => {
 const getData = async () => {
   try {
     const res = await fetchAnalyzePage(searchValue.value);
-    if (_.has(res, 'default') && res["default"]) {
+    if (_.has(res, 'default') && res['default']) {
       analyzeTableConfig.value.default = res.default;
     }
-    if (_.has(res, 'data') && res["data"]) {
+    if (_.has(res, 'data') && res['data']) {
       analyzeTableConfig.value.data = res.data;
       analyzeTableConfig.value.rawData = res.data;
     }
-    if (_.has(res, 'total') && res["total"]) {
+    if (_.has(res, 'total') && res['total']) {
       pagination.total = res.total;
     }
-    if (_.has(res, 'flag') && res["flag"]) {
+    if (_.has(res, 'flag') && res['flag']) {
       analyzeTableConfig.value.flag = res.flag;
     }
   } catch (e) {
-    console.log(e);
+    console.log('[setting][analyze][getData][error]', e);
+    MessagePlugin.error(t('pages.setting.message.loadFail'));
   }
 };
 
 // 编辑
 const editEvent = (row) => {
-  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1)
+  const index = row.rowIndex + pagination.pageSize * (pagination.current - 1);
   formData.value = analyzeTableConfig.value.data[index];
   isVisible.dialogEdit = true;
 };
 
 // 是否启用
-const switchStatus = (row) => {
+const switchStatus = async (row) => {
   console.log(row.isActive);
-  updateAnalyzeItem(row.id, { isActive: row.isActive });
+  try {
+    await updateAnalyzeItem(row.id, { isActive: row.isActive });
+  } catch (err) {
+    row.isActive = !row.isActive;
+    console.log('[setting][analyze][switchStatus][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
 };
 
 const tableUpdateIsActive = (select, isActiveValue: boolean) => {
@@ -283,7 +310,7 @@ const tableAdd = (item) => {
 // 删除
 const removeEvent = async (row) => {
   try {
-    delAnalyzeItem(row.id);
+    await delAnalyzeItem(row.id);
     tableDelete([row.id]);
     pagination.total -= 1;
     MessagePlugin.success(t('pages.setting.form.success'));
@@ -293,7 +320,19 @@ const removeEvent = async (row) => {
   }
 };
 
-const handleAllDataEvent = (type) => {
+const doBatchDelete = async (select) => {
+  try {
+    await delAnalyzeItem(select);
+    tableDelete(select);
+    pagination.total -= select.length;
+    MessagePlugin.success(t('pages.setting.form.success'));
+  } catch (err) {
+    console.log('[setting][analyze][doBatchDelete][error]', err);
+    MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
+  }
+};
+
+const handleAllDataEvent = async (type) => {
   try {
     const { select } = analyzeTableConfig.value;
     if (select.length === 0) {
@@ -301,15 +340,23 @@ const handleAllDataEvent = (type) => {
       return;
     }
     if (type === 'enable') {
-      updateAnalyzeStatus('enable', select);
+      await updateAnalyzeStatus('enable', select);
       tableUpdateIsActive(select, true);
     } else if (type === 'disable') {
-      updateAnalyzeStatus('disable', select);
+      await updateAnalyzeStatus('disable', select);
       tableUpdateIsActive(select, false);
     } else if (type === 'delete') {
-      delAnalyzeItem(select);
-      tableDelete(select);
-      pagination.total -= select.length;
+      const dialog = DialogPlugin.confirm({
+        header: t('pages.setting.header.delete'),
+        body: t('pages.setting.table.deleteTip'),
+        confirmBtn: t('pages.setting.dialog.confirm'),
+        cancelBtn: t('pages.setting.dialog.cancel'),
+        onConfirm: () => {
+          dialog.destroy();
+          doBatchDelete(select);
+        },
+      });
+      return;
     }
 
     MessagePlugin.success(t('pages.setting.form.success'));
@@ -317,11 +364,11 @@ const handleAllDataEvent = (type) => {
     console.log('[setting][analyze][handleAllDataEvent][error]', err);
     MessagePlugin.error(`${t('pages.setting.form.fail')}: ${err}`);
   }
-}
+};
 
 const defaultEvent = async (row) => {
   try {
-    await setDefault("defaultAnalyze", row.id);
+    await setDefault('defaultAnalyze', row.id);
     analyzeTableConfig.value.default = row.id;
     emitter.emit('refreshAnalyzeConfig');
     MessagePlugin.success(t('pages.setting.form.success'));
