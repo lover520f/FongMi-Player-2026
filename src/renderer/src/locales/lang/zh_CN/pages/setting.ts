@@ -133,7 +133,7 @@ export default {
     autoStart: '自动启动',
     autoStartTip: '启动时自动拉起网关',
     token: '网关密钥',
-    tokenPlaceholder: '非本机绑定时需要',
+    tokenPlaceholder: '自动生成，供TV端或局域网扫码填写',
     saveLabel: ' ',
     save: '保存设置',
     saveRestart: '保存并重启',

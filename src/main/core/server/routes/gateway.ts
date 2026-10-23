@@ -6,6 +6,7 @@ import {
   gatewayBase,
   gatewayStatus,
   getGatewaySettings,
+  getGatewayToken,
   restartGateway,
   saveGatewaySettings,
   startGateway,
@@ -16,10 +17,13 @@ const API_VERSION = 'api/v1';
 
 const gwJson = async (path: string, timeoutMs = 30000): Promise<Record<string, unknown>> => {
   const base = gatewayBase().replace(/\/$/, '');
+  const token = getGatewayToken();
+  const sep = path.includes('?') ? '&' : '?';
+  const url = token ? `${base}${path}${sep}token=${encodeURIComponent(token)}` : `${base}${path}`;
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(`${base}${path}`, { signal: ac.signal });
+    const res = await fetch(url, { signal: ac.signal });
     const text = await res.text();
     if (!res.ok) throw new Error(text || `gateway ${res.status}`);
     return JSON.parse(text) as Record<string, unknown>;
@@ -86,18 +90,15 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
     }
   });
 
-  fastify.post(
-    `/${API_VERSION}/gateway/check-java`,
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      try {
-        const body = (req.body || {}) as { javaHome?: string };
-        const javaHome = body.javaHome || getGatewaySettings().javaHome;
-        reply.code(200).send(await checkJava(String(javaHome || '')));
-      } catch (err: any) {
-        reply.code(500).send({ message: err?.message || String(err) });
-      }
-    },
-  );
+  fastify.post(`/${API_VERSION}/gateway/check-java`, async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = (req.body || {}) as { javaHome?: string };
+      const javaHome = body.javaHome || getGatewaySettings().javaHome;
+      reply.code(200).send(await checkJava(String(javaHome || '')));
+    } catch (err: any) {
+      reply.code(500).send({ message: err?.message || String(err) });
+    }
+  });
 
   // 网盘扫码登录：拉取面板状态（LoginShow → 网盘按钮列表 + 已生成的二维码）
   fastify.get(`/${API_VERSION}/gateway/login/state`, async (req: FastifyRequest, reply: FastifyReply) => {
@@ -133,12 +134,7 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
       const refresh = Number.parseInt(String(q.refresh ?? ''), 10) > 0 ? 1 : 0;
       reply
         .code(200)
-        .send(
-          await gwJson(
-            `/ui/click?i=${i}&site=${encodeURIComponent(site)}&retry=${r}&refresh=${refresh}`,
-            60000,
-          ),
-        );
+        .send(await gwJson(`/ui/click?i=${i}&site=${encodeURIComponent(site)}&retry=${r}&refresh=${refresh}`, 60000));
     } catch (err) {
       reply.code(500).send({ message: err instanceof Error ? err.message : String(err) });
     }
@@ -165,72 +161,62 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
   });
 
   // 热切换：持久化配置地址（含历史）→ 让运行中的 Gateway POST /config 重载
-  fastify.post(
-    `/${API_VERSION}/gateway/apply-config`,
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      try {
-        const body = (req.body || {}) as { configUrl?: string; gatewayBase?: string };
-        const configUrl = String(body.configUrl || '').trim();
-        if (!configUrl) {
-          reply.code(400).send({ message: 'configUrl is required' });
-          return;
-        }
-        const saved = saveGatewaySettings({ config: configUrl });
-        const base = String(body.gatewayBase || gatewayBase()).replace(/\/$/, '');
-        const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), 180000);
-        let applied = false;
-        let siteCount: number | undefined;
-        let message = '';
-        try {
-          const res = await fetch(`${base}/config?url=${encodeURIComponent(configUrl)}`, {
-            method: 'POST',
-            body: '{}',
-            headers: { 'Content-Type': 'application/json' },
-            signal: ac.signal,
-          });
-          const text = await res.text();
-          let data: {
-            message?: string;
-            raw?: string;
-            siteCount?: number;
-            data?: { message?: string; siteCount?: number };
-          } = {};
-          try {
-            data = JSON.parse(text);
-          } catch {
-            data = { raw: text };
-          }
-          if (!res.ok) {
-            throw new Error(
-              data?.message || data?.data?.message || data?.raw || `gateway ${res.status}`,
-            );
-          }
-          applied = true;
-          siteCount = data?.siteCount ?? data?.data?.siteCount;
-        } catch (e) {
-          message =
-            e instanceof Error
-              ? e.name === 'AbortError'
-                ? 'gateway /config timeout'
-                : e.message
-              : String(e);
-        } finally {
-          clearTimeout(timer);
-        }
-        reply.code(200).send({
-          applied,
-          saved: true,
-          config: configUrl,
-          configHistory: saved.configHistory,
-          siteCount,
-          message: applied ? '' : `配置已保存，网关热切换失败：${message}`,
-        });
-      } catch (err) {
-        reply.code(500).send({ message: err instanceof Error ? err.message : String(err) });
+  fastify.post(`/${API_VERSION}/gateway/apply-config`, async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const body = (req.body || {}) as { configUrl?: string; gatewayBase?: string };
+      const configUrl = String(body.configUrl || '').trim();
+      if (!configUrl) {
+        reply.code(400).send({ message: 'configUrl is required' });
+        return;
       }
-    },
-  );
+      const saved = saveGatewaySettings({ config: configUrl });
+      const base = String(body.gatewayBase || gatewayBase()).replace(/\/$/, '');
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 180000);
+      let applied = false;
+      let siteCount: number | undefined;
+      let message = '';
+      try {
+        const res = await fetch(`${base}/config?url=${encodeURIComponent(configUrl)}`, {
+          method: 'POST',
+          body: '{}',
+          headers: { 'Content-Type': 'application/json' },
+          signal: ac.signal,
+        });
+        const text = await res.text();
+        let data: {
+          message?: string;
+          raw?: string;
+          siteCount?: number;
+          data?: { message?: string; siteCount?: number };
+        } = {};
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { raw: text };
+        }
+        if (!res.ok) {
+          throw new Error(data?.message || data?.data?.message || data?.raw || `gateway ${res.status}`);
+        }
+        applied = true;
+        siteCount = data?.siteCount ?? data?.data?.siteCount;
+      } catch (e) {
+        message = e instanceof Error ? (e.name === 'AbortError' ? 'gateway /config timeout' : e.message) : String(e);
+      } finally {
+        clearTimeout(timer);
+      }
+      reply.code(200).send({
+        applied,
+        saved: true,
+        config: configUrl,
+        configHistory: saved.configHistory,
+        siteCount,
+        message: applied ? '' : `配置已保存，网关热切换失败：${message}`,
+      });
+    } catch (err) {
+      reply.code(500).send({ message: err instanceof Error ? err.message : String(err) });
+    }
+  });
 };
 
 export default api;

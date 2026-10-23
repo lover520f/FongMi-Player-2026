@@ -133,7 +133,7 @@ export default {
     autoStart: 'Auto start',
     autoStartTip: 'Start gateway when Player launches',
     token: 'Token',
-    tokenPlaceholder: 'Required for non-local bind',
+    tokenPlaceholder: 'Auto-generated; enter on TV or LAN QR login.',
     saveLabel: ' ',
     save: 'Save settings',
     saveRestart: 'Save & restart',

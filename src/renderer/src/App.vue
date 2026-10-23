@@ -13,7 +13,6 @@ import { usePlayStore, useSettingStore } from '@/store';
 import { setup } from '@/api/setting';
 import PLAY_CONFIG from '@/config/play';
 import { autoSync } from '@/utils/webdev';
-import { loadExternalResource } from '@/utils/tool';
 
 import DisclaimerView from '@/pages/Disclaimer.vue';
 
@@ -22,8 +21,8 @@ const storeSetting = useSettingStore();
 const { changeLocale } = useLocale();
 
 const isVisible = reactive({
-  dialogDisclaimer: false
-})
+  dialogDisclaimer: false,
+});
 
 const theme = computed(() => {
   return storeSetting.getStateMode;
@@ -40,24 +39,28 @@ watch(
   (val) => {
     if (intervalId.value) clearInterval(intervalId.value);
     if (val.sync) {
-      intervalId.value = setInterval(() => {
-        autoSync(val.data.url, val.data.username, val.data.password);
-      }, 1000 * 5 * 60);
+      intervalId.value = setInterval(
+        () => {
+          autoSync(val.data.url, val.data.username, val.data.password);
+        },
+        1000 * 5 * 60,
+      );
     }
-  }, { deep: true }
+  },
+  { deep: true },
 );
 watch(
   () => storeSetting.displayMode,
   (val) => {
     const isDarkMode = val === 'dark';
     document.documentElement.setAttribute('theme-mode', isDarkMode ? 'dark' : '');
-  }
+  },
 );
 watch(
   () => useLocalStorage(localeConfigKey, 'zh_CN').value,
   (val) => {
     changeLocale(val);
-  }
+  },
 );
 
 onMounted(() => {
@@ -65,7 +68,7 @@ onMounted(() => {
 });
 
 const initConfig = async () => {
-  const { agreementMask, theme, playerMode, webdev, barrage, timeout, debug } = await setup();
+  const { agreementMask, theme, playerMode, webdev, barrage, timeout } = await setup();
 
   storeSetting.updateConfig({ mode: theme });
   storeSetting.updateConfig({ webdev: webdev });
@@ -78,21 +81,7 @@ const initConfig = async () => {
   init.playerMode = playerMode;
   init.barrage = barrage;
   storePlayer.updateConfig({ setting: init });
-
-  if (debug) {
-    const status = await loadExternalResource('https://test.jikejishu.com/page-spy/index.min.js', 'js');
-    console.log(status)
-    if (status) {
-      window.$pageSpy = new PageSpy({
-        api: 'test.jikejishu.com',
-        clientOrigin: 'https://test.jikejishu.com',
-        project: 'fmplayer',
-        autoRender: true,
-        title: 'fmplayer for debug',
-      });
-    }
-  }
-}
+};
 
 window.electron.ipcRenderer.on('system-theme-updated', (_, activeTheme) => {
   if (theme.value === 'auto') {
@@ -100,5 +89,5 @@ window.electron.ipcRenderer.on('system-theme-updated', (_, activeTheme) => {
     document.documentElement.setAttribute('theme-mode', themeMode);
     console.log(`system-theme-updated: ${activeTheme}`);
   }
-})
+});
 </script>

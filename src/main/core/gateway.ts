@@ -1,5 +1,6 @@
 import { app } from 'electron';
 import { spawn, ChildProcess, execFile, exec } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs-extra';
 import fetch from 'node-fetch';
 import { join, isAbsolute, delimiter } from 'path';
@@ -94,6 +95,20 @@ export function saveGatewaySettings(patch: Partial<GatewaySettings>): GatewaySet
     setting.add({ key: 'gateway', value: next });
   }
   return next;
+}
+
+export function getGatewayToken(): string {
+  return String(getGatewaySettings().token || '');
+}
+
+// 首次启动若 token 为空则自动生成随机 token 并持久化（网关对局域网开放，token 是唯一凭据）
+function ensureGatewayToken(): string {
+  const current = getGatewayToken();
+  if (current) return current;
+  const token = crypto.randomBytes(16).toString('hex');
+  saveGatewaySettings({ token });
+  logger.info('[gateway] generated random token for gateway api');
+  return token;
 }
 
 function resolveJarPath(): string {
@@ -316,6 +331,7 @@ export async function startGateway(override?: Partial<GatewaySettings>): Promise
   const base = getGatewaySettings();
   const s: GatewaySettings = { ...base, ...(override || {}) };
   if (typeof s.port === 'string') s.port = Number(s.port) || 9979;
+  if (!String(s.token || '').trim()) s.token = ensureGatewayToken();
   const jar = resolveJarPath();
   if (!jar) throw new Error('gateway.jar not found under resources/gateway');
   const javaBin = resolveJavaBin(s.javaHome);
