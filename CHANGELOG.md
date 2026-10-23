@@ -8,7 +8,7 @@
 
 ### 安全加固
 
-- 彻底切断 XSS → RCE 链路：远程 HTML（CMS 详情简介、AI 结果、GitHub 更新说明）统一走 DOMPurify 白名单清洗；启用 CSP（脚本仅允许本地来源），恢复 `webSecurity: true`，关闭不安全内容加载。
+- 彻底切断 XSS → RCE 链路：远程 HTML（CMS 详情简介、AI 结果、GitHub 更新说明）统一走 DOMPurify 白名单清洗；生产构建注入 CSP 限制脚本来源（仅本地源码 + 规则引擎所需的 `eval` 与第三方 `iframe` 嵌入），恢复 `webSecurity: true`，关闭不安全内容加载。
 - 修复命令注入：外部播放器与缩略图 ffmpeg 改为参数数组调用，URL 不再经过 shell；`open-url` 仅放行 http/https，`open-path` 禁止逃出用户数据目录。
 - 本地 API 服务只监听 `127.0.0.1`，不再对局域网暴露；文件读写路由统一解析路径并拒绝目录穿越。
 - 网关 token 首次启动自动随机生成并贯穿内部请求；移除调试模式下远程加载的 page-spy 脚本。
@@ -41,7 +41,8 @@
 
 ### 构建与代码质量
 
-- 构建期注入 CSP：修复开发模式下静态 meta 拦截内联脚本导致的首页白屏。
+- 构建期注入 CSP：修复开发模式下静态 meta 拦截内联脚本导致的首页白屏；打包版 CSP 放行 `eval` 与 `iframe`，修复打包后首屏白屏、t3 源失效与解析播放无法嵌入的问题。
+- 侧边栏图标改为内联 SVG 渲染：不再依赖 tdesign CDN 的 svg sprite，修复打包版与离线环境下左侧菜单图标空白。
 - 迁移 ESLint 9 flat config 并保留告警基线门槛，移除破坏模板作用域解析的配置项。
 
 ### 升级提示

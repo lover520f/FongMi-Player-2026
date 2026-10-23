@@ -75,8 +75,11 @@ export default defineConfig(({ mode }: ConfigEnv) => {
           name: 'inject-csp',
           apply: 'build',
           transformIndexHtml(html) {
+            // script-src 必须保留 'unsafe-eval'：vue-i18n 运行时要 new Function 编译消息模板，
+            // drpy/t3 源规则本身就是用 eval 执行的（src/renderer/src/utils/drpy/drpy3.ts）。去掉会白屏且 t3 源全废。
+            // frame-src 必须放开：解析播放走 <iframe> 嵌入第三方站点（src/renderer/src/components/player/index.vue）。
             const csp =
-              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src * data: blob: file:; media-src * data: blob: file:; connect-src * ws: wss: file:; font-src * data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'";
+              "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src * data: blob: file:; media-src * data: blob: file:; connect-src * ws: wss: file:; font-src * data:; worker-src 'self' blob:; frame-src * data: blob: file:; object-src 'none'; base-uri 'self'; form-action 'none'";
             return html.replace(
               '</head>',
               `  <meta http-equiv="Content-Security-Policy" content="${csp}" />\n  </head>`,

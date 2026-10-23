@@ -22,7 +22,17 @@
 </template>
 
 <script setup lang="tsx">
-import type { PropType } from 'vue';
+import type { Component, PropType } from 'vue';
+import {
+  CloudIcon,
+  DataDisplayIcon,
+  FillColor1Icon,
+  MovieClapperIcon,
+  PlayCircleStrokeIcon,
+  Setting1Icon,
+  Tv1Icon,
+  ViewInArIcon,
+} from 'tdesign-icons-vue-next';
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
@@ -31,6 +41,21 @@ import { useLocale } from '@/locales/useLocale';
 import type { MenuRoute } from '@/types/interface';
 
 type ListItemType = MenuRoute & { icon?: string };
+
+// 路由 meta.icon 是 tdesign 图标名字符串，原先交给 <t-icon name> 渲染。
+// t-icon 走的是 svg sprite：运行时要先从 tdesign CDN 拉 index.js 注册 symbol，
+// 打包版被 CSP 拦掉、离线时也拿不到，结果 <use href="#t-icon-xxx"> 指向不存在的 symbol，侧栏图标全空。
+// 这里按名字映射到具体图标组件，内联 svg path，不依赖网络。
+const stringIconMap: Record<string, Component> = {
+  cloud: CloudIcon,
+  'data-display': DataDisplayIcon,
+  'fill-color-1': FillColor1Icon,
+  'movie-clapper': MovieClapperIcon,
+  'play-circle-stroke': PlayCircleStrokeIcon,
+  'setting-1': Setting1Icon,
+  'tv-1': Tv1Icon,
+  'view-in-ar': ViewInArIcon,
+};
 
 const props = defineProps({
   navData: {
@@ -70,7 +95,10 @@ const list = computed(() => {
 });
 
 const menuIcon = (item: ListItemType) => {
-  if (typeof item.icon === 'string') return <t-icon name={item.icon} style="" stroke-width="2.5" />;
+  if (typeof item.icon === 'string') {
+    const Icon = stringIconMap[item.icon];
+    return Icon ? <Icon stroke-width="2.5" /> : null;
+  }
   const RenderIcon = item.icon;
   return RenderIcon;
 };
