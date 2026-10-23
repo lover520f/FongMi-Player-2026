@@ -15,9 +15,12 @@ const defaultRouterList: Array<any> = [
     component: () => import('@/layouts/blank.vue'),
   },
   {
+    // 兜底路由：不存在的路径（改坏 hash、旧版本深链接）直接回首页。
+    // 原先 redirect 到 '/result/404'，但该路径同样匹配 '/:w+'，会无限重定向并抛
+    // RangeError: Maximum call stack size exceeded，导致这次导航彻底失败。
     path: '/:w+',
     name: '404Page',
-    redirect: '/result/404',
+    redirect: '/film/index',
   },
 ];
 

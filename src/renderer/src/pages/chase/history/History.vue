@@ -332,8 +332,14 @@ const filterDate = (date) => {
 
 // 播放进度
 const formatProgress = (start, all) => {
-  const progress = Math.trunc((start / all) * 100);
-  return progress ? `${progress}%` : '0%';
+  // 云盘等来源可能只记录观看时长、没有总时长（duration=0），
+  // 直接相除会得到 Infinity% 这类脏数据，这里按 0% 处理。
+  const s = Number(start);
+  const a = Number(all);
+  if (!Number.isFinite(s) || !Number.isFinite(a) || a <= 0) return '0%';
+  const progress = Math.trunc((s / a) * 100);
+  if (progress <= 0) return '0%';
+  return `${Math.min(progress, 100)}%`;
 };
 
 const defaultSet = () => {
