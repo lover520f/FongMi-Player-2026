@@ -243,11 +243,6 @@ export default {
     loadFail: 'Load failed',
     saveFail: 'Save failed',
   },
-  ad: {
-    title: 'Better on Hipy',
-    desc: 'New Start, New Begin',
-    open: 'open',
-  },
   ua: {
     title: 'User-Agent',
     topTip: 'Emulate User Agent',

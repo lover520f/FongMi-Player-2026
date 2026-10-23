@@ -243,11 +243,6 @@ export default {
     loadFail: '加载失败',
     saveFail: '保存失败',
   },
-  ad: {
-    title: '与Hipy更配哦',
-    desc: '新起点, 新开始',
-    open: '查看',
-  },
   ua: {
     title: 'User-Agent',
     topTip: '模拟用户代理',
