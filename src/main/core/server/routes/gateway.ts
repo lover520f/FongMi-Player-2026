@@ -108,10 +108,12 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
       // 首次调用会触发 spider 冷加载，可能明显慢于平时
       await gwJson(`/action?site=${encodeURIComponent(site)}&action=LoginShow`, 120000);
       // spider 的登录面板是异步弹出的，等可点按钮出现
+      // jar 的 /ui 返回 {code,data:{...}} 包裹结构，count 要从 data 里读，否则永远等满重试次数
       let state: Record<string, unknown> = {};
       for (let n = 0; n < 20; n++) {
         state = await gwJson('/ui', 20000);
-        if (Number(state.count ?? 0) > 0) break;
+        const inner = (state.data && typeof state.data === 'object' ? state.data : state) as Record<string, unknown>;
+        if (Number(inner.count ?? 0) > 0) break;
         await new Promise((r) => setTimeout(r, 250));
       }
       reply.code(200).send(state);

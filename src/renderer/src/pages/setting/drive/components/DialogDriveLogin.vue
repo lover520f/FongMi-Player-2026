@@ -263,7 +263,7 @@ const openQr = async (drive: Drive) => {
       .sort((a, b) => Number(a.mtime || 0) - Number(b.mtime || 0))
       .reverse()
       .find((item) => Number(item.mtime || 0) >= startedAt);
-    if (!fresh) throw new Error('未生成授权二维码，该网盘暂不支持扫码登录');
+    if (!fresh) throw new Error('网关未返回新二维码，请稍后重试');
     await loadQr(String(fresh.name));
     startPolling();
   } catch (e) {
