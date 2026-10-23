@@ -86,9 +86,9 @@ const createMain = () => {
       nodeIntegration: true,
       contextIsolation: false,
       webviewTag: true,
-      webSecurity: false,
+      webSecurity: true,
       spellcheck: false,
-      allowRunningInsecureContent: true,
+      allowRunningInsecureContent: false,
       backgroundThrottling: false,
     },
   });
@@ -181,9 +181,9 @@ const createPlay = () => {
       sandbox: false,
       nodeIntegration: true,
       contextIsolation: false,
-      webSecurity: false,
+      webSecurity: true,
       spellcheck: false,
-      allowRunningInsecureContent: true,
+      allowRunningInsecureContent: false,
       backgroundThrottling: false,
     },
   });

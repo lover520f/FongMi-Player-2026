@@ -5,10 +5,10 @@
   <meta charset="UTF-8" />
   <title>fmplayer</title>
   <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-  <!-- <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
-    /> -->
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src * data: blob: file:; media-src * data: blob: file:; connect-src * ws: wss: file:; font-src * data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
+  />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
 

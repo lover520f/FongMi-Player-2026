@@ -1,14 +1,26 @@
 <template>
-  <t-dialog v-model:visible="formVisible" :header="$t('pages.setting.update.title')" placement="center" :footer="false"
-    :close-on-esc-keydown="false" :close-on-overlay-click="false">
+  <t-dialog
+    v-model:visible="formVisible"
+    :header="$t('pages.setting.update.title')"
+    placement="center"
+    :footer="false"
+    :close-on-esc-keydown="false"
+    :close-on-overlay-click="false"
+  >
     <template #body>
-      <t-loading v-if="load" size="small" indicator :loading="load" :text="$t('pages.setting.update.checkWait')"
-        style="min-height: 30px;" />
+      <t-loading
+        v-if="load"
+        size="small"
+        indicator
+        :loading="load"
+        :text="$t('pages.setting.update.checkWait')"
+        style="min-height: 30px"
+      />
       <div v-else class="wrapper">
         <div class="body">
           <div v-if="updateInfo.new">
             <div>{{ $t('pages.setting.update.foundNewVersion') }}: {{ updateInfo.version }}</div>
-            <div class="content" v-html="updateInfo.releaseNotes"></div>
+            <div class="content" v-html="sanitizeHtml(updateInfo.releaseNotes)"></div>
             <p class="tip">
               {{ $t('pages.setting.update.systemTip') }}
               <br />
@@ -23,8 +35,9 @@
               <t-button v-if="!isDownloaded" :loading="isDownload" @click="startDownload">
                 {{ isDownload ? $t('pages.setting.update.downloading') : $t('pages.setting.update.download') }}
               </t-button>
-              <t-button v-else :disabled="!isDownloaded" @click="installUpdate">{{ $t('pages.setting.update.install')
-                }}</t-button>
+              <t-button v-else :disabled="!isDownloaded" @click="installUpdate">{{
+                $t('pages.setting.update.install')
+              }}</t-button>
             </div>
           </div>
           <p v-else>{{ $t('pages.setting.update.noUpdate') }}</p>
@@ -39,6 +52,7 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import { ref, watch } from 'vue';
 
 import { t } from '@/locales';
+import { sanitizeHtml } from '@/utils/sanitize';
 
 const props = defineProps({
   visible: {

@@ -109,6 +109,7 @@ import { t } from '@/locales';
 import { fetchAiAnswer } from '@/api/lab';
 import { fetchSettingDetail, updateSetting } from '@/api/setting';
 import { copyToClipboardApi } from '@/utils/tool';
+import { sanitizeHtml } from '@/utils/sanitize';
 
 import 'highlight.js/styles/panda-syntax-dark.css';
 
@@ -224,7 +225,7 @@ const AiAnswerEvent = async () => {
   } finally {
     isVisible.loading = false; // 先复位，md.render 抛错也不能卡死发送按钮
     try {
-      formData.value.contentHtml = md.render(String(formData.value.result ?? ''));
+      formData.value.contentHtml = sanitizeHtml(md.render(String(formData.value.result ?? '')));
     } catch (e) {
       formData.value.contentHtml = '';
     }

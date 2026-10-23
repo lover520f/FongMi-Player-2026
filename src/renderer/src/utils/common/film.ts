@@ -9,6 +9,7 @@ import { updateHistory, detailHistory, addHistory } from '@/api/history';
 import { setStream } from '@/api/lab';
 import { setT3Proxy } from '@/api/proxy';
 import { detailStar, addStar, delStar, updateStar } from '@/api/star';
+import { sanitizeHtml } from '@/utils/sanitize';
 
 import {
   fetchDrpyPlayUrl,
@@ -539,7 +540,7 @@ const formatIndex = (item: string): { index: string; url: string } => {
 // 格式化style
 const formatContent = (item: string | undefined | null): string => {
   if (!item) return '';
-  return item!.replace(/style\s*?=\s*?([‘"])[\s\S]*?\1/gi, '');
+  return sanitizeHtml(String(item));
 };
 
 // 获取播放源及剧集
