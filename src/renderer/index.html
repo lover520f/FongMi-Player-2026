@@ -4,11 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>fmplayer</title>
-  <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-  <meta
-    http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src * data: blob: file:; media-src * data: blob: file:; connect-src * ws: wss: file:; font-src * data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
-  />
+  <!-- CSP 由 electron.vite.config.ts 在生产构建时注入（dev 模式 Vite 依赖 inline 脚本，静态 CSP 会拦截导致白屏） -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
 

@@ -71,6 +71,18 @@ export default defineConfig(({ mode }: ConfigEnv) => {
         },
       },
       plugins: [
+        {
+          name: 'inject-csp',
+          apply: 'build',
+          transformIndexHtml(html) {
+            const csp =
+              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src * data: blob: file:; media-src * data: blob: file:; connect-src * ws: wss: file:; font-src * data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'";
+            return html.replace(
+              '</head>',
+              `  <meta http-equiv="Content-Security-Policy" content="${csp}" />\n  </head>`,
+            );
+          },
+        },
         vue({
           template: {
             compilerOptions: {
