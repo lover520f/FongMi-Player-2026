@@ -227,12 +227,41 @@ export function gatewayBase(): string {
   return `http://${host}:${s.port || 9979}`;
 }
 
+// 判定 URL 是否指向本网关（loopback + 同端口，兼容 jar 生成的 127.0.0.1/localhost URL）
+export function isGatewayUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:') return false;
+    const base = new URL(gatewayBase());
+    if (parsed.origin === base.origin) return true;
+    return parsed.port === base.port && ['127.0.0.1', 'localhost', '0.0.0.0'].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// 网关启用 token 后所有端点强制 ?token= 校验：仅对本网关 origin 追加，外网/外部网关 URL 不受影响
+export function withGatewayToken(url: string): string {
+  try {
+    const token = getGatewayToken();
+    if (!token) return url;
+    const parsed = new URL(url);
+    const base = new URL(gatewayBase());
+    if (parsed.origin !== base.origin) return url;
+    if (parsed.searchParams.has('token')) return url;
+    parsed.searchParams.set('token', token);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 async function probeHealth(timeoutMs = 3000): Promise<any | null> {
   try {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), timeoutMs);
     try {
-      const res = await fetch(`${gatewayBase()}/health`, { signal: ac.signal });
+      const res = await fetch(withGatewayToken(`${gatewayBase()}/health`), { signal: ac.signal });
       const body: any = await res.json();
       return body?.data ?? body;
     } finally {

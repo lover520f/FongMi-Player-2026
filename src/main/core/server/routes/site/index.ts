@@ -4,7 +4,7 @@ import { enlightentHot, kyLiveHot } from './hot';
 import { classify, detail, get_hipy_play_url, get_drpy_play_url, check, search, list } from './cms';
 
 import { site, setting } from '../../../db/service';
-import { gatewayBase, getGatewaySettings, saveGatewaySettings } from '../../../gateway';
+import { gatewayBase, getGatewaySettings, saveGatewaySettings, withGatewayToken } from '../../../gateway';
 
 const API_VERSION = 'api/v1';
 const GATEWAY_DEFAULT = 'http://127.0.0.1:9979';
@@ -24,7 +24,7 @@ async function gatewayJson(url: string, init?: any): Promise<any> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 120000);
   try {
-    const res = await fetch(url, {
+    const res = await fetch(withGatewayToken(url), {
       ...init,
       signal: ac.signal,
       headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },

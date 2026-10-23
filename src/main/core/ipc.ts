@@ -6,6 +6,7 @@ import { join, resolve, relative, isAbsolute } from 'path';
 
 import logger from './logger';
 import { setting } from './db/service';
+import { withGatewayToken } from './gateway';
 import puppeteerInElectron from '../utils/pie';
 import { toggleWindowVisibility } from '../utils/tool';
 import { createMain, createPlay, getWin } from './winManger';
@@ -44,11 +45,13 @@ const ipcListen = () => {
 
   ipcMain.on('call-player', (_, path: string, url: string) => {
     if (url && path) {
+      // 网关媒体 URL 外部播放器不带 header：补 ?token=（非网关 URL 原样返回）
+      const finalUrl = withGatewayToken(String(url));
       // execFile 参数数组传递，外部 URL 不进 shell，杜绝命令注入
-      execFile(path, [url], (err) => {
+      execFile(path, [finalUrl], (err) => {
         if (err) logger.error(`[ipcMain] call-player error: ${err}`);
       });
-      logger.info(`[ipcMain] call-player: path:${path} url:${url}`);
+      logger.info(`[ipcMain] call-player: path:${path} url:${finalUrl}`);
     }
   });
 
@@ -86,8 +89,19 @@ const ipcListen = () => {
       ? join(process.cwd(), 'thumbnail', `${key}.jpg`)
       : join(app.getPath('userData'), 'thumbnail', `${key}.jpg`);
 
-    // 参数数组传递给 execFile，URL/UA 不进 shell，保持原有参数顺序
-    const args = ['-y', '-frames:v', '1', '-q:v', '20', '-user_agent', uaState, formatPath, '-i', String(url ?? '')];
+    // 参数数组传递给 execFile，URL/UA 不进 shell，保持原有参数顺序（网关缩略图 URL 补 token）
+    const args = [
+      '-y',
+      '-frames:v',
+      '1',
+      '-q:v',
+      '20',
+      '-user_agent',
+      uaState,
+      formatPath,
+      '-i',
+      withGatewayToken(String(url ?? '')),
+    ];
 
     try {
       await execFile('ffmpeg', args);
@@ -136,7 +150,7 @@ const ipcListen = () => {
     try {
       const parsed = new URL(String(url));
       if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-        shell.openExternal(parsed.toString());
+        shell.openExternal(withGatewayToken(parsed.toString()));
       } else {
         logger.warn(`[ipcMain] open-url blocked non-http scheme: ${parsed.protocol}`);
       }

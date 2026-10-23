@@ -18,7 +18,7 @@ import protocolResgin from './core/protocolResgin';
 import initServer from './core/server';
 import { createBossShortcut } from './core/shortcut';
 import { createMain } from './core/winManger';
-import { disposeGateway, getGatewaySettings, startGateway } from './core/gateway';
+import { disposeGateway, getGatewaySettings, getGatewayToken, isGatewayUrl, startGateway } from './core/gateway';
 import { parseCustomUrl } from './utils/tool';
 
 /**
@@ -51,8 +51,8 @@ if (setting.find({ key: 'hardwareAcceleration' }).value) {
   app.disableHardwareAcceleration();
 }
 
-let reqIdMethod = {}; // 请求id与header列表
-let reqIdRedirect = {};
+const reqIdMethod = {}; // 请求id与header列表
+const reqIdRedirect = {};
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -60,19 +60,19 @@ let reqIdRedirect = {};
 app.whenReady().then(async () => {
   if (setting.find({ key: 'dns' }).value) {
     const doh = setting.find({ key: 'dns' }).value;
-    logger.info(`[dns] doh: ${doh}`)
+    logger.info(`[dns] doh: ${doh}`);
     app.configureHostResolver({
       secureDnsMode: 'secure',
       secureDnsServers: [doh],
     });
-  };
+  }
 
   registerTitleBarListener();
 
   const defaultSession = session.defaultSession;
 
   defaultSession.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
-    let { url, id } = details;
+    const { url, id } = details;
     const filters = ['devtools-detector.min.js', 'devtools-detector.js'];
     if (filters.some((filter) => url.includes(filter))) {
       callback({ cancel: true });
@@ -95,6 +95,14 @@ app.whenReady().then(async () => {
 
   defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     const { requestHeaders, url, id } = details;
+
+    // 网关媒体流（video/m3u8/分片/danmaku）不经过 axios 拦截器：统一注入鉴权 header（jar 对其与 ?token= 等效）
+    const gwToken = getGatewayToken();
+    const hasGwAuth = Object.keys(requestHeaders).some((k) => k.toLowerCase() === 'x-gateway-token');
+    if (gwToken && isGatewayUrl(url) && !hasGwAuth) {
+      requestHeaders['X-Gateway-Token'] = gwToken;
+    }
+
     const headers = reqIdMethod[details.id] || {};
     const isLocalhostRef = (headerValue) =>
       `${headerValue}`.includes('//localhost') || `${headerValue}`.includes('//127.0.0.1');
@@ -192,7 +200,7 @@ app.whenReady().then(async () => {
   // gateway auto start (non-blocking)
   try {
     if (getGatewaySettings().autoStart) {
-      startGateway().catch(err => logger.error(`[gateway] autoStart failed: ${err}`));
+      startGateway().catch((err) => logger.error(`[gateway] autoStart failed: ${err}`));
     }
   } catch (err) {
     logger.error(`[gateway] autoStart error: ${err}`);

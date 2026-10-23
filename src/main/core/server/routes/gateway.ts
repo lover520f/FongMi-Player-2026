@@ -11,6 +11,7 @@ import {
   saveGatewaySettings,
   startGateway,
   stopGateway,
+  withGatewayToken,
 } from '../../gateway';
 
 const API_VERSION = 'api/v1';
@@ -177,7 +178,7 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
       let siteCount: number | undefined;
       let message = '';
       try {
-        const res = await fetch(`${base}/config?url=${encodeURIComponent(configUrl)}`, {
+        const res = await fetch(withGatewayToken(`${base}/config?url=${encodeURIComponent(configUrl)}`), {
           method: 'POST',
           body: '{}',
           headers: { 'Content-Type': 'application/json' },

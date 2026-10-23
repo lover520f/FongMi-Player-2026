@@ -7,7 +7,11 @@ import xpath from 'xpath';
 import { DOMParser } from '@xmldom/xmldom';
 
 import { site as db_site } from '../../../db/service';
+import { withGatewayToken } from '../../../gateway';
 import CLASS_FILTER_CONFIG from './config/app_filter';
+
+// 网关 type8 站点直连 9979 时需携带 token（仅命中本网关 origin 才追加）
+const gwFetch = (url: string, init?: Parameters<typeof fetch>[1]) => fetch(withGatewayToken(url), init);
 
 // 初始化对象xml转json https://github.com/NaturalIntelligence/fast-xml-parser/blob/master/docs/v4/1.GettingStarted.md
 const xmlOptions = {
@@ -120,14 +124,14 @@ const classify = async (id) => {
 
     let json;
     if (site.type === 8) {
-      const response = await fetch(url, {
+      const response = await gwFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       });
       json = await response.json();
     } else {
-      const response = await fetch(url);
+      const response = await gwFetch(url);
       if (site.type === 0) json = parser.parse(await response.text());
       else json = await response.json();
     }
@@ -213,7 +217,7 @@ const classify = async (id) => {
         filters[key] = cmsFilterData;
       }
     } else if (site.type === 2) {
-      const classResponse = await fetch(site.api);
+      const classResponse = await gwFetch(site.api);
       const textResponse = await classResponse.text();
 
       const jsonClass = textResponse;
@@ -234,7 +238,7 @@ const classify = async (id) => {
       filters = {};
 
       if (site.type === 4) {
-        const type_4_response = await fetch(removeTrailingSlash(site.api));
+        const type_4_response = await gwFetch(removeTrailingSlash(site.api));
         const text_4_response = (await type_4_response.json()) as { data: { limit: number; total: number } };
         limit = text_4_response['data']['limit'];
         total = text_4_response['data']['total'];
@@ -268,7 +272,7 @@ const classify = async (id) => {
       classData = jsondata.class;
       if (classData) {
         const category_url = buildUrl(site.api, `&extend=${site.ext}&ac=videolist&t=${classData[0].type_id}&pg=1`);
-        const category_response = await fetch(category_url);
+        const category_response = await gwFetch(category_url);
         const category_json = (await category_response.json()) as {
           page: number;
           pagecount: number;
@@ -374,14 +378,14 @@ const list = async (id, pg = 1, t, f = {}) => {
 
     let json;
     if (site.type === 8) {
-      const response = await fetch(url, {
+      const response = await gwFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(postData),
       });
       json = await response.json();
     } else {
-      const response = await fetch(url);
+      const response = await gwFetch(url);
       if (site.type === 0) json = parser.parse(await response.text());
       else json = await response.json();
     }
@@ -449,14 +453,14 @@ const search = async (id, wd) => {
 
     let json;
     if (site.type === 8) {
-      const response = await fetch(url, {
+      const response = await gwFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(postData),
       });
       json = await response.json();
     } else {
-      const response = await fetch(url);
+      const response = await gwFetch(url);
       if (site.type === 0) json = parser.parse(await response.text());
       else json = await response.json();
     }
@@ -578,14 +582,14 @@ const detail = async (key, id) => {
 
     let json;
     if (site.type === 8) {
-      const response = await fetch(url, {
+      const response = await gwFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(postData),
       });
       json = await response.json();
     } else {
-      const response = await fetch(url);
+      const response = await gwFetch(url);
       if (site.type === 0) json = parser.parse(await response.text());
       else json = await response.json();
     }
@@ -668,7 +672,7 @@ const get_hipy_play_url = async (id, flag, play) => {
   try {
     const site = db_site.find({ id });
     const url = buildUrl(site.api, `?extend=${site.ext}&flag=${flag}&play=${play}`);
-    const response = await fetch(url);
+    const response = await gwFetch(url);
     const data = await response.json();
     let playUrl = data;
     if (_.has(data, 'url')) playUrl = data['url'];
@@ -698,7 +702,7 @@ const get_drpy_play_url = async (id, url) => {
     if (port) parsueUrl = `${protocol}//${hostname}:${port}/web/302redirect?url=${encodeURIComponent(url)}`;
     else parsueUrl = `${protocol}//${hostname}/web/302redirect?url=${encodeURIComponent(url)}`;
 
-    const response = await fetch(parsueUrl);
+    const response = await gwFetch(parsueUrl);
     const text = await response.json();
     return text;
   } catch (err) {
