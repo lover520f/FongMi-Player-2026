@@ -3,8 +3,16 @@
     <t-button theme="default" shape="square" variant="text" @click="toggleDrawerAndHandlePlayer">
       <dvd-icon />
     </t-button>
-    <t-drawer v-model:visible="isVisible.drawer" show-in-attached-element :footer=null :attach="`.${prefix}-content`"
-      :size-draggable="{ max: 920, min: 320 }" @confirm="change" @close="close" size="320px">
+    <t-drawer
+      v-model:visible="isVisible.drawer"
+      show-in-attached-element
+      :footer="null"
+      :attach="`.${prefix}-content`"
+      :size-draggable="{ max: 920, min: 320 }"
+      size="320px"
+      @confirm="change"
+      @close="close"
+    >
       <div class="content">
         <div id="mse"></div>
         <div class="slide">
@@ -22,15 +30,18 @@ import '@/style/player/veplayer.css';
 
 import { MessagePlugin } from 'tdesign-vue-next';
 import { DvdIcon, RefreshIcon } from 'tdesign-icons-vue-next';
-import { ref, reactive } from 'vue';
+import { ref, reactive, nextTick } from 'vue';
 import Player from 'xgplayer';
 
 import { fetchSettingDetail } from '@/api/setting';
 import { prefix } from '@/config/global';
 import { t } from '@/locales';
 
+// 与基础设置"恢复默认"一致的随性看接口，设置为空时兜底，避免点开只报"暂无数据"
+const DEFAULT_VIEW_CASUAL = 'http://api.yujn.cn/api/zzxjj.php';
+
 const isVisible = reactive({
-  drawer: false
+  drawer: false,
 });
 const api = ref();
 const player = ref();
@@ -41,74 +52,73 @@ const config = ref({
   rotate: {
     clockwise: false,
     innerRotate: true,
-    index: 1
+    index: 1,
   },
   keyboard: {
     keyCodeMap: {
-      'up': {
+      up: {
         action: function () {
-          console.log('[justlook][keyboard]up fresh video')
+          console.log('[justlook][keyboard]up fresh video');
           change();
-        }
+        },
       },
-      'down': {
+      down: {
         action: function () {
-          console.log('[justlook][keyboard]down fresh video')
+          console.log('[justlook][keyboard]down fresh video');
           change();
-        }
-      }
-    }
+        },
+      },
+    },
   },
   dynamicBg: {
-    disable: false
+    disable: false,
   },
   ignores: ['cssFullscreen', 'playbackRate'],
   height: '100%',
-  width: '100%'
-})
+  width: '100%',
+});
 
 const fetchDataAndSetPlayerConfig = async () => {
-  const res = await fetchSettingDetail('defaultViewCasual');
-
-  if (!res.value) {
+  try {
+    const res = await fetchSettingDetail('defaultViewCasual');
+    api.value = res?.value || DEFAULT_VIEW_CASUAL;
+    config.value.url = api.value;
+    return true;
+  } catch {
     MessagePlugin.warning(t('pages.justlook.message.noData'));
-    return;
+    return false;
   }
-
-  api.value = res.value;
-  config.value.url = res.value;
-}
+};
 
 const initializePlayer = () => {
   player.value = new Player(config.value);
-}
+};
 
 const toggleDrawerAndHandlePlayer = async () => {
   if (!isVisible.drawer) {
-    await fetchDataAndSetPlayerConfig();
+    if (!(await fetchDataAndSetPlayerConfig())) return;
     isVisible.drawer = true;
-
-    if (api.value) {
-      initializePlayer();
-    }
+    // 等抽屉内容挂载后再初始化，否则 xgplayer 可能找不到 #mse 节点
+    await nextTick();
+    initializePlayer();
   } else {
     close();
     isVisible.drawer = false;
   }
-}
+};
 
 const close = () => {
   if (player.value) {
     player.value.destroy();
     player.value = null;
   }
-}
+};
 
 const change = () => {
   if (player.value) {
     player.value.src = api.value;
   }
-}
+};
 </script>
 
 <style lang="less" scoped>
@@ -136,7 +146,7 @@ const change = () => {
       background-color: #33343f;
       height: 40px;
       line-height: 40px;
-      opacity: .7;
+      opacity: 0.7;
       text-align: center;
       width: 32px;
 
@@ -152,7 +162,6 @@ const change = () => {
 
     .refresh {
       border-radius: var(--td-radius-round);
-
     }
   }
 }
