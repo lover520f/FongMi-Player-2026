@@ -29,7 +29,7 @@ import initConfig from './routes/catbox/config';
 
 logger.info('[server] fastify module initialized');
 
-let logOpt = {
+const logOpt = {
   console: true, // 是否开启console.log 。。。
   file: join(app.getPath('userData'), 'logs/fastify.log'), // 文件路径
   maxBufferLength: 4096, // 日志写入缓存队列最大长度
@@ -85,7 +85,7 @@ const initServer = async () => {
     server.register(util);
     server.register(gateway);
 
-    await server.listen({ port: 9978, host: '0.0.0.0' });
+    await server.listen({ port: 9978, host: '127.0.0.1' });
   } catch (err) {
     server.log.error(err);
     process.exit(1);

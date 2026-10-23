@@ -2,10 +2,18 @@ import { FastifyReply, FastifyPluginAsync, FastifyRequest } from 'fastify';
 import fs from 'fs-extra';
 import { app } from 'electron';
 import { nanoid } from 'nanoid';
-import { join, relative, basename, extname, dirname } from 'path';
+import { join, relative, basename, extname, dirname, resolve, isAbsolute } from 'path';
 
 const API_VERSION = 'api/v1';
 const BASE_PATH = join(app.getPath('userData'), 'file'); // 文件路径
+
+// 防目录穿越：解析后必须仍在 BASE_PATH 内
+const resolveSafePath = (fileName: string): string | null => {
+  const filePath = resolve(BASE_PATH, fileName);
+  const rel = relative(BASE_PATH, filePath);
+  if (rel.startsWith('..') || isAbsolute(rel)) return null;
+  return filePath;
+};
 
 const api: FastifyPluginAsync = async (fastify): Promise<void> => {
   fastify.delete(
@@ -13,7 +21,11 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
     async (req: FastifyRequest<{ Querystring: { [key: string]: string } }>, reply: FastifyReply) => {
       try {
         const fileName = (req.params as { '*': string })['*'];
-        const filePath = join(BASE_PATH, fileName);
+        const filePath = resolveSafePath(fileName);
+        if (!filePath) {
+          reply.code(400).send({ code: 400, msg: 'invalid file path' });
+          return;
+        }
         const exists = await fs.pathExists(filePath);
 
         if (exists) {
@@ -40,7 +52,10 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
 
       try {
         const fileName = (req.params as { '*': string })['*'];
-        const filePath = join(BASE_PATH, fileName);
+        const filePath = resolveSafePath(fileName);
+        if (!filePath) {
+          return reply.code(400).send({ code: 400, msg: 'invalid file path' });
+        }
         const exists = await fs.pathExists(filePath);
 
         let response = '';
