@@ -1,8 +1,8 @@
 import { electronApp, is, platform } from '@electron-toolkit/utils';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { app, BrowserWindow, globalShortcut, ipcMain, nativeTheme, shell } from 'electron';
 import fs from 'fs-extra';
-import { join } from 'path';
+import { join, resolve, relative, isAbsolute } from 'path';
 
 import logger from './logger';
 import { setting } from './db/service';
@@ -44,9 +44,11 @@ const ipcListen = () => {
 
   ipcMain.on('call-player', (_, path: string, url: string) => {
     if (url && path) {
-      const command = `${path} "${url}"`;
-      exec(command);
-      logger.info(`[ipcMain] call-player: command:${command}`);
+      // execFile 参数数组传递，外部 URL 不进 shell，杜绝命令注入
+      execFile(path, [url], (err) => {
+        if (err) logger.error(`[ipcMain] call-player error: ${err}`);
+      });
+      logger.info(`[ipcMain] call-player: path:${path} url:${url}`);
     }
   });
 
@@ -72,36 +74,25 @@ const ipcListen = () => {
   };
 
   ipcMain.on('tmpdir-manage', (event, action, trails) => {
-    let formatPath = join(app.getPath('userData'), trails);
+    const formatPath = join(app.getPath('userData'), trails);
     if (action === 'rmdir' || action === 'mkdir' || action === 'init') tmpDir(formatPath);
     if (action === 'make') fs.ensureDirSync(formatPath);
     if (action === 'size') event.reply('tmpdir-manage-size', getFolderSize(formatPath));
   });
 
   ipcMain.handle('ffmpeg-thumbnail', async (_, url, key) => {
-    let uaState: any = setting.find({ key: 'ua' }).value;
+    const uaState = String(setting.find({ key: 'ua' }).value ?? '');
     const formatPath = is.dev
       ? join(process.cwd(), 'thumbnail', `${key}.jpg`)
       : join(app.getPath('userData'), 'thumbnail', `${key}.jpg`);
 
-    const ffmpegCommand = 'ffmpeg'; // ffmpeg 命令
-    const inputOptions = ['-i', url]; // 输入选项，替换为实际视频流 URL
-    const outputOptions = [
-      '-y', // 使用 -y 选项强制覆盖输出文件
-      '-frames:v',
-      '1',
-      '-q:v',
-      '20', // 设置输出图片质量为5
-      '-user_agent',
-      `"${uaState}"`,
-      `"${formatPath}"`,
-    ];
-    const command = [ffmpegCommand, ...outputOptions, ...inputOptions].join(' '); // 确保 -user_agent 选项位于输入 URL 之前
+    // 参数数组传递给 execFile，URL/UA 不进 shell，保持原有参数顺序
+    const args = ['-y', '-frames:v', '1', '-q:v', '20', '-user_agent', uaState, formatPath, '-i', String(url ?? '')];
 
     try {
-      await exec(command);
+      await execFile('ffmpeg', args);
       const isGenerat = fs.existsSync(formatPath);
-      logger.info(`[ipcMain] ffmpeg-thumbnail status:${isGenerat} command:${command}`);
+      logger.info(`[ipcMain] ffmpeg-thumbnail status:${isGenerat} key:${key}`);
       return {
         key,
         url: `file://${formatPath}`,
@@ -141,11 +132,27 @@ const ipcListen = () => {
   });
 
   ipcMain.on('open-url', async (_, url) => {
-    shell.openExternal(url);
+    // scheme 白名单：仅允许 http/https，防止 file:// 或自定义协议被滥用
+    try {
+      const parsed = new URL(String(url));
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(parsed.toString());
+      } else {
+        logger.warn(`[ipcMain] open-url blocked non-http scheme: ${parsed.protocol}`);
+      }
+    } catch (err) {
+      logger.error(`[ipcMain] open-url invalid url: ${err}`);
+    }
   });
 
   ipcMain.on('open-path', async (_, file, create) => {
-    const path = join(app.getPath('userData'), file);
+    const path = resolve(app.getPath('userData'), String(file ?? ''));
+    // 防目录穿越：解析后必须仍在 userData 内
+    const rel = relative(app.getPath('userData'), path);
+    if (rel.startsWith('..') || isAbsolute(rel)) {
+      logger.warn(`[ipcMain] open-path blocked path escape: ${file}`);
+      return;
+    }
     // 查看目录是否存在，如果不存在，就创建一个
     if (create) fs.ensureDirSync(path);
     shell.openPath(path);
