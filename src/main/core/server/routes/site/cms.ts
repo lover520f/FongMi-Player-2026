@@ -100,6 +100,12 @@ const removeHTMLTagsAndSpaces = (str) => {
   return trimmedString;
 };
 
+// 分类/筛选项数据相对稳定（源的栏目结构很少变），切源/切分类每次都重新请求
+// 源站是「加载慢」的一大来源。这里加一层内存缓存，命中则直接返回，省掉一整跳 RTT。
+// TTL 取 10 分钟：既能让分类秒出，又不至于长期不刷新导致栏目变化看不到。
+const CLASSIFY_TTL = 10 * 60 * 1000; // 10 分钟
+const classifyCache = new Map<string, { at: number; data: any }>();
+
 /**
  * 获取资源分类 和 所有资源的总数, 分页等信息
  * @param {*} id 资源网 id
@@ -108,6 +114,11 @@ const removeHTMLTagsAndSpaces = (str) => {
 const classify = async (id) => {
   try {
     const site = db_site.find({ id });
+    const cacheKey = id;
+    const cached = classifyCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < CLASSIFY_TTL) {
+      return cached.data;
+    }
 
     let url;
     let postData;
@@ -299,7 +310,7 @@ const classify = async (id) => {
       filters = jsondata?.filters === undefined ? [] : jsondata.filters;
     }
 
-    return {
+    const result = {
       classData,
       page,
       pagecount,
@@ -307,6 +318,8 @@ const classify = async (id) => {
       total,
       filters,
     };
+    classifyCache.set(id, { at: Date.now(), data: result });
+    return result;
   } catch (err) {
     throw err;
   }
@@ -331,8 +344,6 @@ const convertVideoList = (videoItems) => {
       des: vod_content,
       year: vod_year,
       area: vod_area,
-      director: vod_director,
-      actor: vod_actor,
     }) => ({
       vod_id,
       type_id,
@@ -343,14 +354,26 @@ const convertVideoList = (videoItems) => {
       vod_blurb: removeHTMLTagsAndSpaces(vod_content),
       vod_year: toString(vod_year),
       vod_area,
-      vod_content,
-      vod_director,
-      vod_actor,
+      // 列表页用不到全文简介/导演/演员，只保留上面提取的纯文本 blurb。
+      // 这些字段在 XML 列表接口里往往很大（des 是含 HTML 的全文），裁剪掉能显著
+      // 减小响应体与前端数据量，加快列表加载。详情页走 detail 接口另行获取。
+      // vod_content / vod_director / vod_actor 已刻意不返回。
     }),
   );
 };
+// 列表数据按 (id, pg, t, f) 缓存一段很短的时间（15s）。切分类再切回、来回滚动时
+// 秒出；TTL 短，基本不会长期显示过期数据。过滤条件 f 参与 key，避免不同筛选串数据。
+const LIST_TTL = 15 * 1000; // 15 秒
+const listCache = new Map<string, { at: number; data: any[] }>();
+
 const list = async (id, pg = 1, t, f = {}) => {
   try {
+    const cacheKey = `${id}|${pg}|${t}|${JSON.stringify(f)}`;
+    const cached = listCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < LIST_TTL) {
+      return cached.data;
+    }
+
     const site = db_site.find({ id });
     let url;
     let postData;
@@ -405,6 +428,7 @@ const list = async (id, pg = 1, t, f = {}) => {
     } else if (site.type === 4) {
       videoList = jsondata.data.list;
     }
+    listCache.set(cacheKey, { at: Date.now(), data: videoList });
     return videoList;
   } catch (err) {
     throw err;
