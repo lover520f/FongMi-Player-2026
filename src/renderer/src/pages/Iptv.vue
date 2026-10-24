@@ -167,6 +167,28 @@ const channelData = ref<any>({
   total: 0,
 })
 
+// 频道追加去重：原来用 _.unionWith(list, 新页, _.isEqual)，新页每个频道都要跟已累积的
+// 全部频道做深比较。频道表可以上万条，翻到后面单页要跑几十万次深比较。频道 id 是
+// 库里的唯一主键（v-for 也拿它当 key），直接按 id 去重即可，O(n+m)。
+type ChannelItem = { id?: string | number };
+
+const appendUniqueChannel = (incoming: ChannelItem[], existing: ChannelItem[]): ChannelItem[] => {
+  const seen = new Set(existing.map((item) => item?.id).filter((id) => id !== undefined && id !== null).map(String));
+  const fresh: ChannelItem[] = [];
+  for (const item of incoming) {
+    // 没有主键的条目一律保留：宁可重复一条，也不能把一堆空 id 折叠成同一个 key 全丢掉
+    if (item?.id === undefined || item?.id === null || item?.id === '') {
+      fresh.push(item);
+      continue;
+    }
+    const key = String(item.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    fresh.push(item);
+  }
+  return fresh;
+};
+
 // 切分类/换源时数据层会把 list 清空再重拉，照着渲染就是一次白屏。
 // 新请求在途时先留着上一批频道并压暗，等新数据到达再整体换掉；
 // 手上没有上一批（首次进入）才退回骨架占位。
@@ -315,7 +337,7 @@ const getChannel = async () => {
 
   if (skipIpv6) res.data = await checkChannelListIpv6(res.data);
   const restultLength = res.data.length;
-  channelData.value.list = _.unionWith(list, res.data, _.isEqual) as any;
+  channelData.value.list = [...list, ...appendUniqueChannel(res.data, list)] as any;
 
   if (status) checkChannelDelay(pageIndex, pageSize);
   if (thumbnail) generateThumbnail(pageIndex, pageSize);
