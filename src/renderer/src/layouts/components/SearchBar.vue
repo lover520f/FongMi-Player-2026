@@ -2,6 +2,9 @@
   <div
     v-if="route.name === 'FilmIndex' || route.name === 'IptvIndex' || route.name === 'AnalyzeIndex'"
     class="search-bar"
+    @keydown.down="moveSuggest(1, $event)"
+    @keydown.up="moveSuggest(-1, $event)"
+    @keydown.esc="closeSuggest"
   >
     <t-popup placement="bottom-right" :visible="isVisible.popup" :on-visible-change="popupVisibleEvent">
       <t-input
@@ -9,7 +12,7 @@
         :placeholder="$t('pages.search.searchPlaceholder')"
         class="search-input"
         clearable
-        :on-enter="searchEvent"
+        :on-enter="enterEvent"
         :on-click="focusEvent"
         @clear="searchEvent(searchValue)"
       >
@@ -32,7 +35,37 @@
       </t-input>
       <template v-if="activeRouteName === 'FilmIndex' || activeRouteName === 'AnalyzeIndex'" #content>
         <div class="search-content">
-          <div v-show="searchList.length > 0" class="history">
+          <!-- 一旦输入了关键词，就把位置让给候选：历史和热榜是「想搜什么」的入口，候选是「已经想好了」 -->
+          <div v-if="keyword" class="suggest">
+            <div class="suggest-nav">
+              <span class="suggest-title">{{ $t('pages.search.suggestTitle') }}</span>
+              <span v-if="suggestLoading" class="suggest-loading">{{ $t('pages.search.suggestLoading') }}</span>
+            </div>
+            <ul v-if="suggestRows.length" class="suggest-list">
+              <li
+                v-for="(row, index) in suggestRows"
+                :key="row.title"
+                :class="['suggest-item', index === suggestIndex ? 'is-active' : '']"
+                @mouseenter="suggestIndex = index"
+                @click="searchEvent(row.title)"
+              >
+                <search-icon class="suggest-icon" />
+                <span class="suggest-text">
+                  <template v-if="row.hit"
+                    >{{ row.head }}<em class="suggest-hit">{{ row.hit }}</em
+                    >{{ row.tail }}</template
+                  >
+                  <template v-else>{{ row.title }}</template>
+                </span>
+              </li>
+            </ul>
+            <div v-else-if="!suggestLoading" class="suggest-empty">{{ $t('pages.search.suggestEmpty') }}</div>
+            <div class="suggest-submit" @click="searchEvent(keyword)">
+              <search-icon class="suggest-icon" />
+              <span class="suggest-submit-text">{{ $t('pages.search.suggestSubmit', { kw: keyword }) }}</span>
+            </div>
+          </div>
+          <div v-show="!keyword && searchList.length > 0" class="history">
             <div class="history-nav">
               <div class="history-title">{{ $t('pages.search.searchHistory') }}</div>
               <div class="history-clear" @click.stop="clearSearchHistory">
@@ -51,7 +84,7 @@
               >
             </div>
           </div>
-          <div class="hot">
+          <div v-show="!keyword" class="hot">
             <div class="hot-nav">
               <span
                 v-for="item in hotConfig.hotOption"
@@ -98,13 +131,14 @@ import _ from 'lodash';
 import moment from 'moment';
 import { DeleteIcon, SearchIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { t } from '@/locales';
 import emitter from '@/utils/emitter';
 import { komectHot, doubanHot, kyLiveHot, enlightentHot } from '@/utils/hot';
 import { fetchHistoryList, clearHistorySearchList, addHistory } from '@/api/history';
+import { fetchSiteActive } from '@/api/site';
 import { fetchSettingDetail } from '@/api/setting';
 
 import CONFIG from '@/config/hotClass';
@@ -135,14 +169,247 @@ const hotConfig = reactive({
 const searchList = ref([]) as any;
 const searchValue = ref('');
 const activeRouteName = computed(() => route.name);
+const keyword = computed(() => searchValue.value.trim());
 let hotReqId = 0; // 热榜请求代次：切源/重进页面后丢弃过期响应
 let historyReqId = 0; // 历史请求代次：清空后丢弃在途响应
+
+/* ---------------------------------------------------------------- 搜索联想 */
+// 候选分两层：
+//   本地 = 搜索历史 + 当前热榜，随打随出，零请求；
+//   远端 = 拿默认源搜一次，补「只打了一个词，本地一条都匹配不上」的空档。
+// 远端只打一个源，260ms 防抖 + 4s 超时 + 代次丢弃 —— 联想是锦上添花，
+// 慢和失败都不能拖着输入框，也不能让旧关键词的结果盖住新关键词。
+const SUGGEST_MAX = 8; // 面板最多几条
+const SUGGEST_MIN_CHARS = 2; // 少于此字数不发远端请求，避免每个字都打一次源
+const SUGGEST_DEBOUNCE = 260;
+const SUGGEST_TIMEOUT = 4000;
+const SUGGEST_CACHE_MAX = 60;
+
+const suggestIndex = ref(-1);
+const suggestLoading = ref(false);
+const remoteSuggest = reactive({ kw: '', items: [] as string[] });
+const suggestCache = new Map<string, string[]>();
+let suggestTimer: ReturnType<typeof setTimeout> | null = null;
+let suggestToken = 0;
+// 程序性写入（点热榜、fillSearch、切路由清空）不该把候选面板弹出来
+let suppressSuggestWatch = false;
+
+// 候选标题是外部源给的，高亮靠「切成三段」而不是拼 html —— 既不会把源里的标签当标记渲染，
+// 也免了先转义再插标签那一套
+const splitSuggest = (title: string): { head: string; hit: string; tail: string } => {
+  const raw = String(title ?? '');
+  const kw = keyword.value;
+  const at = kw ? raw.toLowerCase().indexOf(kw.toLowerCase()) : -1;
+  if (!kw || at < 0) return { head: raw, hit: '', tail: '' };
+  return { head: raw.slice(0, at), hit: raw.slice(at, at + kw.length), tail: raw.slice(at + kw.length) };
+};
+
+// 本地候选：历史优先——用户搜过的词最可能是他要再搜一次的
+const matchLocal = (kw: string): string[] => {
+  const low = kw.toLowerCase();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (raw: unknown) => {
+    const text = String(raw ?? '').trim();
+    if (!text) return;
+    const key = text.toLowerCase();
+    if (seen.has(key) || !key.includes(low)) return;
+    seen.add(key);
+    out.push(text);
+  };
+  for (const item of searchList.value || []) push(item?.title);
+  for (const item of hotConfig.hotData || []) push(item?.vod_name);
+  return out;
+};
+
+const suggestItems = computed<string[]>(() => {
+  const kw = keyword.value;
+  if (!kw) return [];
+  const low = kw.toLowerCase();
+  const seen = new Set<string>();
+  const pool = matchLocal(kw).concat(remoteSuggest.kw === kw ? remoteSuggest.items : []);
+  const all: string[] = [];
+  for (const raw of pool) {
+    const text = String(raw ?? '').trim();
+    if (!text || text.length > 80) continue; // 超长多半是源把简介塞进了标题
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    all.push(text);
+  }
+  // 前缀命中排前面：输「庆」时「庆余年」比「我在庆余年里当群演」更像要找的
+  all.sort((a, b) => Number(!a.toLowerCase().startsWith(low)) - Number(!b.toLowerCase().startsWith(low)));
+  return all.slice(0, SUGGEST_MAX);
+});
+
+const suggestRows = computed(() => suggestItems.value.map((title) => ({ title, ...splitSuggest(title) })));
+
+const rememberSuggest = (kw: string, items: string[]) => {
+  suggestCache.set(kw, items);
+  if (suggestCache.size > SUGGEST_CACHE_MAX) {
+    const oldest = suggestCache.keys().next().value;
+    if (oldest !== undefined) suggestCache.delete(oldest);
+  }
+};
+
+// 联想用的源：优先默认源（用户真正会先搜的那个），它不可搜时退到任意一个可搜源
+type SuggestSite = { id?: string; search?: number | string; [key: string]: unknown };
+let suggestSite: SuggestSite | null = null;
+let suggestSitePending: Promise<SuggestSite | null> | null = null;
+const resolveSuggestSite = async (): Promise<SuggestSite | null> => {
+  if (suggestSite) return suggestSite;
+  if (!suggestSitePending) {
+    suggestSitePending = (async () => {
+      const res = await fetchSiteActive();
+      const def = (res?.default || null) as SuggestSite | null;
+      if (def && Number(def.search) !== 0) return def;
+      const list: SuggestSite[] = Array.isArray(res?.data) ? res.data : [];
+      return list.find((item) => Number(item.search) === 1) || null;
+    })()
+      .then((site) => {
+        suggestSite = site;
+        return site;
+      })
+      .catch(() => null)
+      .finally(() => {
+        suggestSitePending = null;
+      });
+  }
+  return suggestSitePending;
+};
+
+// 源被增删改后：缓存的源、缓存的关键词候选、在途请求全部作废
+const resetSuggestSource = () => {
+  suggestSite = null;
+  suggestSitePending = null;
+  suggestCache.clear();
+  suggestToken++;
+};
+
+const withTimeout = <T,>(task: Promise<T>, ms: number): Promise<T> =>
+  Promise.race([
+    task,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('suggest timeout')), ms);
+    }),
+  ]);
+
+const loadRemoteSuggest = async (kw: string, token: number) => {
+  const cached = suggestCache.get(kw);
+  if (cached) {
+    remoteSuggest.kw = kw;
+    remoteSuggest.items = cached;
+    return;
+  }
+  const site = await resolveSuggestSite();
+  if (!site || token !== suggestToken) return;
+
+  suggestLoading.value = true;
+  try {
+    // cms.ts 带着 xmldom / crypto-js / xpath，惰性引入，别为了联想把它们塞进首屏包
+    const { fetchSearch } = await import('@/utils/cms');
+    const res: unknown = await withTimeout(fetchSearch(site, kw, 1), SUGGEST_TIMEOUT);
+    if (token !== suggestToken) return; // 期间又改了关键词，这份结果作废
+    const list = Array.isArray(res) ? (res as Array<{ vod_name?: string }>) : [];
+    const titles = list
+      .map((item) => String(item?.vod_name ?? '').trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    rememberSuggest(kw, titles);
+    remoteSuggest.kw = kw;
+    remoteSuggest.items = titles;
+  } catch (err) {
+    // 源超时/报错就只留本地候选：联想失败不该影响打字，也不该弹提示打扰
+    console.log('[search][suggest][skip]', err instanceof Error ? err.message : err);
+  } finally {
+    if (token === suggestToken) suggestLoading.value = false;
+  }
+};
+
+const scheduleRemoteSuggest = (kw: string) => {
+  if (suggestTimer) {
+    clearTimeout(suggestTimer);
+    suggestTimer = null;
+  }
+  suggestToken++; // 任何输入变化都作废在途请求
+  suggestLoading.value = false;
+  if (Array.from(kw).length < SUGGEST_MIN_CHARS) return;
+
+  const token = suggestToken;
+  suggestTimer = setTimeout(() => {
+    suggestTimer = null;
+    void loadRemoteSuggest(kw, token);
+  }, SUGGEST_DEBOUNCE);
+};
+
+const applySearchValue = (val: string) => {
+  // watch 是 flush:'sync' 的，这里置位后立刻会被消费掉，不会漏到下一次真实输入
+  suppressSuggestWatch = true;
+  searchValue.value = val;
+  suppressSuggestWatch = false;
+};
+
+watch(
+  keyword,
+  (kw) => {
+    if (suppressSuggestWatch) return;
+    suggestIndex.value = -1;
+
+    if (!kw) {
+      if (suggestTimer) {
+        clearTimeout(suggestTimer);
+        suggestTimer = null;
+      }
+      suggestToken++;
+      suggestLoading.value = false;
+      remoteSuggest.kw = '';
+      remoteSuggest.items = [];
+      return;
+    }
+
+    // 一输入就展开候选面板；电视页没有候选面板，保持原样
+    if (activeRouteName.value === 'FilmIndex' || activeRouteName.value === 'AnalyzeIndex') {
+      isVisible.popup = true;
+    }
+
+    const cached = suggestCache.get(kw);
+    remoteSuggest.kw = cached ? kw : '';
+    remoteSuggest.items = cached || [];
+    scheduleRemoteSuggest(kw);
+  },
+  { flush: 'sync' },
+);
+
+const moveSuggest = (step: number, event?: KeyboardEvent) => {
+  if (!isVisible.popup || !suggestRows.value.length) return;
+  event?.preventDefault();
+  const len = suggestRows.value.length;
+  let next = suggestIndex.value + step;
+  if (next < -1) next = len - 1; // 在输入框按 ↑ 跳到最后一个
+  if (next > len - 1) next = -1; // 在最后一项按 ↓ 回到输入框
+  suggestIndex.value = next;
+  void nextTick(() => {
+    const el = document.querySelector('.suggest-item.is-active') as HTMLElement | null;
+    el?.scrollIntoView({ block: 'nearest' });
+  });
+};
+
+const closeSuggest = () => {
+  if (!isVisible.popup) return;
+  isVisible.popup = false;
+  suggestIndex.value = -1;
+};
+
+const enterEvent = () => {
+  const picked = suggestIndex.value >= 0 ? suggestRows.value[suggestIndex.value]?.title || '' : '';
+  searchEvent(picked || keyword.value);
+};
 
 watch(
   () => activeRouteName.value,
   async (newVal) => {
     if (newVal === 'FilmIndex') await getFilmSearhConfig();
-    searchValue.value = '';
+    applySearchValue('');
   },
 );
 
@@ -150,9 +417,14 @@ onMounted(async () => {
   if (activeRouteName.value === 'FilmIndex') await getFilmSearhConfig();
   if (!emitter.all.get('fillSearch')) {
     emitter.on('fillSearch', (kw: string) => {
-      searchValue.value = kw || '';
+      // 只是把词填进框里，搜不搜由调用方自己发事件决定，别顺手弹候选
+      applySearchValue(kw || '');
     });
   }
+  // 站点页增删改源后缓存下来的源和候选都过期了（这个事件 Film 页也在监听，
+  // 所以不能像上面那样用 emitter.all.get 判重，改用「先摘再挂」同名的具名函数）
+  emitter.off('refreshFilmConfig', resetSuggestSource);
+  emitter.on('refreshFilmConfig', resetSuggestSource);
 });
 
 onActivated(() => {
@@ -160,7 +432,8 @@ onActivated(() => {
   if (!isListenedRefreshHotConfig) emitter.on('refreshHotConfig', refreshHotConfig);
   if (!emitter.all.get('fillSearch')) {
     emitter.on('fillSearch', (kw: string) => {
-      searchValue.value = kw || '';
+      // 只是把词填进框里，搜不搜由调用方自己发事件决定，别顺手弹候选
+      applySearchValue(kw || '');
     });
   }
 });
@@ -328,7 +601,8 @@ const getHotList = async (retryCount = 1, reqId = hotReqId) => {
 
 // 搜索资源
 const searchEvent = async (item) => {
-  searchValue.value = item;
+  applySearchValue(item ?? '');
+  suggestIndex.value = -1;
   if (activeRouteName.value === 'FilmIndex' || activeRouteName.value === 'AnalyzeIndex') {
     if (item && _.findIndex(searchList.value, { title: item }) === -1) {
       const doc = {
@@ -364,6 +638,7 @@ const searchEvent = async (item) => {
 const popupVisibleEvent = (_, context) => {
   if (context.trigger === 'document') {
     isVisible.popup = false;
+    suggestIndex.value = -1;
   }
 };
 
@@ -391,6 +666,112 @@ const refreshHotConfig = () => {
   width: 465px;
   padding: 15px;
   font-weight: 500;
+
+  .suggest {
+    .suggest-nav {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 8px;
+
+      .suggest-title {
+        font-weight: 700;
+      }
+
+      .suggest-loading {
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--td-text-color-placeholder);
+      }
+    }
+
+    .suggest-list {
+      max-height: 272px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        border-radius: 3px;
+        background-color: var(--td-scrollbar-color, rgba(0, 0, 0, 0.18));
+      }
+    }
+
+    .suggest-item {
+      display: flex;
+      align-items: center;
+      height: 34px;
+      padding: 0 8px;
+      border-radius: var(--td-radius-default);
+      cursor: pointer;
+
+      .suggest-icon {
+        flex: none;
+        margin-right: 8px;
+        color: var(--td-text-color-placeholder);
+      }
+
+      .suggest-text {
+        overflow: hidden;
+        font-weight: 500;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      &:hover,
+      &.is-active {
+        background-color: var(--td-bg-color-component-hover);
+      }
+    }
+
+    .suggest-hit {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--td-brand-color);
+    }
+
+    .suggest-empty {
+      padding: 10px 8px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--td-text-color-placeholder);
+    }
+
+    // 最后一行始终是「原样搜索」：候选里没有想要的，也能直接提交整串
+    .suggest-submit {
+      display: flex;
+      align-items: center;
+      height: 34px;
+      margin-top: 6px;
+      padding: 0 8px;
+      border-top: 1px solid var(--td-component-stroke);
+      border-radius: var(--td-radius-default);
+      color: var(--td-text-color-secondary);
+      cursor: pointer;
+
+      .suggest-icon {
+        flex: none;
+        margin-right: 8px;
+      }
+
+      .suggest-submit-text {
+        overflow: hidden;
+        font-weight: 500;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      &:hover {
+        background-color: var(--td-bg-color-component-hover);
+      }
+    }
+  }
 
   .history {
     margin-bottom: 10px;

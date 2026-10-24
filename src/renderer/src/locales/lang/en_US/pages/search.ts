@@ -8,4 +8,8 @@ export default {
   searchSource: 'Search Source',
   searchPlaceholder: 'Search resources',
   hotNoData: 'No data for the past three days',
+  suggestTitle: 'Suggestions',
+  suggestLoading: 'Matching...',
+  suggestEmpty: 'No matching suggestions',
+  suggestSubmit: 'Search "{kw}"',
 };

@@ -8,4 +8,8 @@ export default {
   searchSource: '搜索源',
   searchPlaceholder: '搜索全网资源',
   hotNoData: '暂无近三天数据, 请查看其他分类',
+  suggestTitle: '搜索候选',
+  suggestLoading: '正在联想…',
+  suggestEmpty: '没有匹配的候选',
+  suggestSubmit: '搜索 “{kw}”',
 };
