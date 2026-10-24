@@ -178,6 +178,7 @@ import {
   updateSiteStatus,
   delSiteItem,
   syncGatewaySites,
+  warmSite,
 } from '@/api/site';
 import { checkValid } from '@/utils/cms';
 import emitter from '@/utils/emitter';
@@ -581,6 +582,8 @@ const defaultEvent = async (row) => {
     await setDefault('defaultSite', row.id);
     siteTableConfig.value.default = row.id;
     emitter.emit('refreshFilmConfig');
+    // 预热网关源：后台触发 classify 填缓存，规避首次点源的 spider 冷启动（非 type 8 源由后端忽略）
+    warmSite(row.id).catch((e) => console.log('[setting][site][warm][error]', e));
     MessagePlugin.success(t('pages.setting.form.success'));
   } catch (err) {
     console.log('[setting][site][defaultEvent][error]', err);

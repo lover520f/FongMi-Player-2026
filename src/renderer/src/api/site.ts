@@ -146,3 +146,12 @@ export function syncGatewaySites(doc: { configUrl?: string; gatewayBase?: string
     timeout: 180000,
   });
 }
+
+// 预热网关（type 8）源，后台触发 classify 填缓存，规避首次点源的 spider 冷启动
+export function warmSite(id: string) {
+  return request({
+    url: `/v1/site/warm`,
+    method: 'post',
+    data: { id },
+  });
+}

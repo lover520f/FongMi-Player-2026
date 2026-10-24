@@ -290,6 +290,38 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
       reply.code(500).send(err);
     }
   });
+  // 预热网关（type 8）源：后台触发一次 classify 填充 Player 侧 classify 缓存 + 网关侧 home 缓存，
+  // 让用户首次点源即命中缓存，规避 spider 首次初始化的 5s 冷启动。仅对 type 8 源有意义，其余源直接忽略。
+  const warmInFlight = new Set<string>();
+  fastify.post(
+    `/${API_VERSION}/site/warm`,
+    async (req: FastifyRequest<{ Body: { id?: string } }>, reply: FastifyReply) => {
+      try {
+        const { id } = req.body || {};
+        if (!id) {
+          reply.code(200).send({ ok: false, reason: 'missing id' });
+          return;
+        }
+        const src = await site.find({ id });
+        if (!src || src.type !== 8) {
+          reply.code(200).send({ ok: false, skipped: true, reason: 'not a gateway source' });
+          return;
+        }
+        if (warmInFlight.has(id)) {
+          reply.code(200).send({ ok: true, alreadyWarming: true });
+          return;
+        }
+        warmInFlight.add(id);
+        // fire-and-forget：不阻塞「设为默认源」的交互，后台填缓存
+        classify(id)
+          .catch((err) => console.log(`[site] warm classify failed for ${id}:`, err?.message || err))
+          .finally(() => warmInFlight.delete(id));
+        reply.code(200).send({ ok: true, warming: true });
+      } catch (err) {
+        reply.code(500).send(err);
+      }
+    },
+  );
   fastify.get(`/${API_VERSION}/site/group`, async (_, reply: FastifyReply) => {
     try {
       const res = await site.group();
