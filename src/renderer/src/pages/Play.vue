@@ -74,15 +74,57 @@
         <div class="container-player" :class='["subject", isVisible.aside ? "subject-ext" : ""]'>
           <div class="player-panel">
             <div class="player-media">
-              <div id="mse" class="player"></div>
-            </div>
-            <div v-if="isVisible.playError" class="player-error-mask">
-              <div class="player-error-content">
-                <p class="player-error-msg">{{ playErrorMsg }}</p>
-                <p class="player-error-desc">{{ $t('pages.player.error.desc') }}</p>
-                <t-button theme="primary" variant="outline" @click="retryPlay">
-                  {{ $t('pages.player.error.retry') }}
-                </t-button>
+              <!-- 全屏容器：把播放器包一层，并让各内核的全屏请求重定向到这里
+                   （见 installFullscreenRedirect）。这样全屏后选集面板与错误提示
+                   仍在全屏元素内，且不会被内核 destroy 时的 innerHTML = '' 清掉。 -->
+              <div ref="fsWrapRef" class="mse-wrap">
+                <div id="mse" class="player"></div>
+                <div v-show="isVisible.fullscreen && type === 'film'" class="fs-tools">
+                  <!-- 面板展开时 dock 要跟着左移，否则会被 300px 宽的面板整个盖住，用户就收不回去了 -->
+                  <div :class="['fs-tools-dock', { 'is-open': isVisible.fsPanel }]"
+                    @click="isVisible.fsPanel = !isVisible.fsPanel">
+                    <chevron-left-icon v-if="isVisible.fsPanel" class="fs-dock-icon" />
+                    <chevron-right-icon v-else class="fs-dock-icon" />
+                  </div>
+                  <div v-show="isVisible.fsPanel" class="fs-panel">
+                    <div class="fs-panel-header">
+                      <span class="fs-panel-title">{{ $t('pages.player.film.anthology') }}</span>
+                      <span class="fs-panel-name nowrap">{{ active.filmIndex }}</span>
+                      <close-icon class="fs-panel-close" @click="isVisible.fsPanel = false" />
+                    </div>
+                    <t-dropdown v-if="lineNames.length > 1" placement="bottom" :max-height="240">
+                      <t-button size="small" theme="default" variant="text" auto-width>
+                        <span class="fs-panel-line">{{ active.flimSource }}</span>
+                        <template #suffix>
+                          <chevron-down-icon size="16" />
+                        </template>
+                      </t-button>
+                      <t-dropdown-menu>
+                        <t-dropdown-item v-for="key in lineNames" :key="key" :value="key"
+                          @click="(options) => switchLineEvent(options.value as string)">
+                          <span :class="[key === active.flimSource ? 'active' : '']">{{ key }}</span>
+                        </t-dropdown-item>
+                      </t-dropdown-menu>
+                    </t-dropdown>
+                    <div class="fs-panel-list">
+                      <div v-for="(item, index) in season?.[active.flimSource]" :key="item"
+                        :class='["fs-ep", item === active.filmIndex ? "fs-ep-active" : ""]'
+                        @click="fsSelectEpisode(item)">
+                        {{ formatReverseOrder(isVisible.reverseOrder ? 'positive' : 'negative', index,
+                          season?.[active.flimSource]?.length) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="isVisible.playError" class="player-error-mask">
+                  <div class="player-error-content">
+                    <p class="player-error-msg">{{ playErrorMsg }}</p>
+                    <p class="player-error-desc">{{ $t('pages.player.error.desc') }}</p>
+                    <t-button theme="primary" variant="outline" @click="retryPlay">
+                      {{ $t('pages.player.error.retry') }}
+                    </t-button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -396,7 +438,7 @@ import {
 } from 'tdesign-icons-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { computed, onMounted, ref, reactive, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, reactive, shallowRef, watch } from 'vue';
 
 import { fetchChannelList } from '@/api/iptv';
 import { checkUrlIpv6, getLocalStorage } from '@/utils/tool';
@@ -538,8 +580,15 @@ const isVisible = reactive({
   aside: false,
   reverseOrder: true,
   official: false,
-  playError: false
+  playError: false,
+  fullscreen: false,
+  fsPanel: false
 })
+
+// 全屏容器（包裹 #mse，见模板注释）
+const fsWrapRef = ref<HTMLElement | null>(null);
+// 可切换的线路名
+const lineNames = computed(() => Object.keys(season.value || {}).filter((key) => !!key));
 
 const iptvConfig = ref({
   epg: '',
@@ -607,10 +656,60 @@ const notifyPlayError = (message?: string, immediate: boolean = false) => {
   }, 3000);
 };
 
+// ===== 全屏 =====
+// 四个播放器内核（dplayer/xgplayer/artplayer/nplayer）都对自己的容器（#mse）
+// 调用 requestFullscreen。全屏元素只有 #mse 时，选集侧栏与失败提示都在它外面：
+// 长剧换集必须退出全屏，播放失败时只剩一块黑屏、看不到重试按钮。
+// 这里把「#mse 及其实例内部元素」的全屏请求统一重定向到外层 .mse-wrap，
+// 全屏范围就包含了选集面板与错误提示；顺带还有一个好处——换集会销毁并重建
+// 播放器（内核 destroy 时会清空 #mse 的 innerHTML），而 .mse-wrap 里的面板
+// 不在被清空的范围内，换集后仍留在全屏里。
+let restoreFullscreenRedirect: (() => void) | null = null;
+
+const redirectFullscreenTarget = (el: Element | null): HTMLElement | null => {
+  const mse = document.getElementById('mse');
+  const wrap = fsWrapRef.value;
+  if (!el || !mse || !wrap) return null;
+  // xgplayer/artplayer 可能把全屏目标设成自己创建的内部节点，故判断包含关系
+  return el === mse || el.contains(mse) || mse.contains(el) ? wrap : null;
+};
+
+const installFullscreenRedirect = () => {
+  const request = Element.prototype.requestFullscreen;
+  Element.prototype.requestFullscreen = function (this: Element, ...args: []) {
+    const target = redirectFullscreenTarget(this);
+    if (target && target !== this) return request.apply(target, args);
+    return request.apply(this, args);
+  };
+  return () => {
+    Element.prototype.requestFullscreen = request;
+  };
+};
+
+const syncFullscreenState = () => {
+  const el = document.fullscreenElement;
+  const wrap = fsWrapRef.value;
+  isVisible.fullscreen = !!el && !!wrap && (el === wrap || el.contains(wrap));
+  if (!isVisible.fullscreen) isVisible.fsPanel = false;
+};
+
+const exitFullscreenIfNeeded = () => {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+};
+
 onMounted(() => {
   setStreamErrorNotify(handlePlayerError);
   initPlayer();
   minMaxEvent();
+  restoreFullscreenRedirect = installFullscreenRedirect();
+  document.addEventListener('fullscreenchange', syncFullscreenState);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncFullscreenState);
+  restoreFullscreenRedirect?.();
+  restoreFullscreenRedirect = null;
+  exitFullscreenIfNeeded();
 });
 
 // 加载播放器
@@ -1026,6 +1125,16 @@ const changeEvent = async (item, silent = false) => {
   } finally {
     switching = false;
   }
+};
+
+// 全屏面板选集：切集成功后自动收起，否则面板会一直挡着画面
+const fsSelectEpisode = async (item: string) => {
+  if (item === active.filmIndex) {
+    isVisible.fsPanel = false;
+    return;
+  }
+  const ok = await changeEvent(item);
+  if (ok) isVisible.fsPanel = false;
 };
 
 // 提前获取下一集链接
@@ -1632,10 +1741,146 @@ window.electron.ipcRenderer.on('destroy-playerWindow', () => {
             width: 100%;
             height: 100%;
 
-            .player {
+            .mse-wrap {
               width: 100%;
               height: 100%;
               position: relative;
+
+              // 全屏时补一层黑底，避免宽高比不一致时露出页面背景
+              &:fullscreen {
+                background: #000;
+              }
+
+              .player {
+                width: 100%;
+                height: 100%;
+                position: relative;
+              }
+            }
+
+            .fs-tools {
+              position: absolute;
+              inset: 0;
+              // 取值要高于播放失败遮罩（100）：播放失败时选集面板是换集/换源的最后手段，
+              // 被遮罩压住就变成了「打不开也退不出」的死锁
+              z-index: 120;
+              pointer-events: none;
+
+              .fs-tools-dock {
+                pointer-events: auto;
+                position: absolute;
+                top: 50%;
+                right: 0;
+                transform: translateY(-50%);
+                width: 32px;
+                height: 84px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.4);
+                border-radius: 8px 0 0 8px;
+                cursor: pointer;
+                transition: background 0.15s ease-out, right 0.2s ease-out;
+
+                &:hover {
+                  background: rgba(0, 0, 0, 0.6);
+                }
+
+                // 面板展开后停靠在面板左侧，保持可点（否则被面板覆盖，无法收起）
+                &.is-open {
+                  right: 300px;
+                }
+
+                .fs-dock-icon {
+                  width: 24px;
+                  height: 24px;
+                  color: #fbfbfb;
+                }
+              }
+
+              .fs-panel {
+                pointer-events: auto;
+                position: absolute;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                width: 300px;
+                display: flex;
+                flex-direction: column;
+                padding: 12px 12px 0;
+                box-sizing: border-box;
+                background: rgba(20, 20, 20, 0.92);
+                backdrop-filter: blur(6px);
+
+                .fs-panel-header {
+                  display: flex;
+                  align-items: baseline;
+                  gap: 8px;
+                  margin-bottom: 4px;
+
+                  .fs-panel-title {
+                    color: #fbfbfb;
+                    font-size: 15px;
+                    font-weight: 500;
+                  }
+
+                  .fs-panel-name {
+                    max-width: 150px;
+                    color: rgba(251, 251, 251, 0.6);
+                    font-size: 12px;
+                  }
+
+                  .fs-panel-close {
+                    margin-left: auto;
+                    color: rgba(251, 251, 251, 0.6);
+                    cursor: pointer;
+                    transition: color 0.15s ease-out;
+
+                    &:hover {
+                      color: #fbfbfb;
+                    }
+                  }
+                }
+
+                .fs-panel-line {
+                  color: rgba(251, 251, 251, 0.85);
+                }
+
+                .fs-panel-list {
+                  flex: 1;
+                  min-height: 0;
+                  display: flex;
+                  flex-wrap: wrap;
+                  align-content: flex-start;
+                  gap: 8px;
+                  margin-top: 6px;
+                  padding: 8px 0;
+                  overflow-y: auto;
+                  border-top: 1px solid rgba(255, 255, 255, 0.12);
+
+                  .fs-ep {
+                    min-width: 46px;
+                    height: 32px;
+                    line-height: 32px;
+                    padding: 0 8px;
+                    border-radius: 4px;
+                    text-align: center;
+                    font-size: 13px;
+                    color: rgba(251, 251, 251, 0.85);
+                    background: rgba(255, 255, 255, 0.08);
+                    cursor: pointer;
+
+                    &:hover {
+                      background: rgba(255, 255, 255, 0.18);
+                    }
+
+                    &.fs-ep-active {
+                      color: #fff;
+                      background: var(--td-brand-color);
+                    }
+                  }
+                }
+              }
             }
           }
 

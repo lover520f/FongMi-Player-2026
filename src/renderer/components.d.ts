@@ -33,7 +33,6 @@ declare module 'vue' {
     TForm: typeof import('tdesign-vue-next')['Form']
     TFormItem: typeof import('tdesign-vue-next')['FormItem']
     THeader: typeof import('tdesign-vue-next')['Header']
-    TIcon: typeof import('tdesign-vue-next')['Icon']
     TImage: typeof import('tdesign-vue-next')['Image']
     TInput: typeof import('tdesign-vue-next')['Input']
     TInputAdornment: typeof import('tdesign-vue-next')['InputAdornment']
