@@ -435,7 +435,11 @@
       </div>
     </div>
 
-    <dialog-player-view v-model:visible="isVisible.player" :url="formDialog.player.url" />
+    <!-- 试播放弹窗按需加载：它静态依赖 @/components/player，会把 5.9MB 的播放内核
+         拖进写源工具（实测打开编辑器下 13.57MB，其中 5.9MB 是根本没用上的播放内核）。
+         用 :is + shallowRef，首次点「试播放」时才创建实例，之后常驻复用。 -->
+    <component :is="dialogPlayerView" v-if="dialogPlayerView" v-model:visible="isVisible.player"
+      :url="formDialog.player.url" />
     <dialog-ai-view v-model:visible="isVisible.ai" />
     <!-- <dialog-tool-view v-model:visible="isVisible.tool" /> -->
   </div>
@@ -448,7 +452,8 @@ import moment from 'moment';
 import * as monaco from 'monaco-editor';
 import jsBeautify from 'js-beautify';
 import JSON5 from 'json5';
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
+import type { Component } from 'vue';
 import { useRouter } from 'vue-router';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import {
@@ -465,7 +470,6 @@ import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 
-import dialogPlayerView from './components/DialogPlayer.vue';
 import dialogAiView from './components/DialogAi.vue';
 // import dialogToolView from './components/DialogTool.vue';
 
@@ -591,6 +595,9 @@ const formDialog = reactive({
     url: '',
   },
 });
+
+// 试播放弹窗（含播放内核约 5.9MB）首次打开时才加载
+const dialogPlayerView = shallowRef<Component | null>(null);
 
 watch(
   () => systemTheme.value,
@@ -1279,6 +1286,11 @@ const actionPlayer = async (url = '') => {
   }
 
   formDialog.player.url = url;
+  // 先挂组件再翻 visible：异步组件挂载时 props.visible 已经是 true，
+  // 所以 DialogPlayer 里那个 watch 必须 immediate（已同步改好）
+  if (!dialogPlayerView.value) {
+    dialogPlayerView.value = defineAsyncComponent(() => import('./components/DialogPlayer.vue'));
+  }
   isVisible.player = true;
 };
 
