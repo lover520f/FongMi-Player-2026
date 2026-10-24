@@ -25,6 +25,9 @@ const publicConfigVeXg = {
   autoplay: true,
   pip: true,
   cssFullscreen: false,
+  // xgplayer 默认 keyShortcut: true（←→ 快进 10s、↑↓ 音量、f/m/空格）。
+  // 键位与步长和别的内核不一致，统一关掉，改由 pages/Play.vue 提供。
+  keyShortcut: false,
   startTime: 0,
   playbackRate: {
     list: [

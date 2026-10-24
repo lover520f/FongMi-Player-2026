@@ -21,7 +21,9 @@ const options: any = {
   pip: true,
   setting: true,
   flip: true,
-  hotkey: true,
+  // 内置热键关掉：四个内核各有一套（artplayer/dplayer/xgplayer 有、nplayer 没有），
+  // 键位与步长都不一致。快捷键统一由 pages/Play.vue 处理，这里只负责渲染。
+  hotkey: false,
   isLive: false,
   aspectRatio: true,
   plugins: [

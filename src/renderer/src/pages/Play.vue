@@ -138,6 +138,25 @@
                     </t-button>
                   </div>
                 </div>
+                <!-- 键盘操作回声：全屏时没有鼠标点击，靠它确认按键确实生效 -->
+                <transition name="shortcut-fade">
+                  <div v-if="shortcutHint" class="shortcut-hint">{{ shortcutHint }}</div>
+                </transition>
+                <!-- 快捷键一览：按 ? 打开。放在 .mse-wrap 内，全屏下同样可见 -->
+                <div v-if="isVisible.shortcuts" class="shortcut-help" @click.self="isVisible.shortcuts = false">
+                  <div class="shortcut-help-card">
+                    <div class="shortcut-help-header">
+                      <span class="shortcut-help-title">{{ $t('pages.player.shortcut.title') }}</span>
+                      <close-icon class="shortcut-help-close" @click="isVisible.shortcuts = false" />
+                    </div>
+                    <div class="shortcut-help-body">
+                      <div v-for="row in shortcutRows" :key="row.keys" class="shortcut-help-row">
+                        <span class="shortcut-help-keys">{{ row.keys }}</span>
+                        <span class="shortcut-help-desc">{{ row.desc }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -455,7 +474,7 @@ import { computed, onBeforeUnmount, onMounted, ref, reactive, shallowRef, watch 
 
 import { fetchChannelList } from '@/api/iptv';
 import { checkUrlIpv6, getLocalStorage } from '@/utils/tool';
-import { playerBarrage, playerCreate, playerDestroy, playerNext, playerSeek, playerPause, playerTimeUpdate, offPlayerTimeUpdate, offPlayerBarrage, playerOnError, offPlayerError, setStreamErrorNotify } from '@/utils/common/player';
+import { playerBarrage, playerCreate, playerDestroy, playerNext, playerSeek, playerPause, playerToggle, playerCurrentTime, playerDuration, playerVolume, playerMuted, playerTimeUpdate, offPlayerTimeUpdate, offPlayerBarrage, playerOnError, offPlayerError, setStreamErrorNotify } from '@/utils/common/player';
 import {
   fetchBingeData,
   putBingeData,
@@ -626,7 +645,8 @@ const isVisible = reactive({
   official: false,
   playError: false,
   fullscreen: false,
-  fsPanel: false
+  fsPanel: false,
+  shortcuts: false
 })
 
 // 全屏容器（包裹 #mse，见模板注释）
@@ -734,11 +754,210 @@ const syncFullscreenState = () => {
   const el = document.fullscreenElement;
   const wrap = fsWrapRef.value;
   isVisible.fullscreen = !!el && !!wrap && (el === wrap || el.contains(wrap));
-  if (!isVisible.fullscreen) isVisible.fsPanel = false;
+  if (!isVisible.fullscreen) {
+    isVisible.fsPanel = false;
+    // 全屏时按 Esc 是 Chromium 直接退出全屏，keydown 不会派发给页面，
+    // 所以浮层收不到那次 Esc，只能在这里跟着收掉
+    isVisible.shortcuts = false;
+  }
 };
 
 const exitFullscreenIfNeeded = () => {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+};
+
+// ===== 键盘快捷键 =====
+// 四个内核原本各有内置热键，但只有 artplayer/dplayer/xgplayer 有，键位和步长
+// 还都不一样，nplayer 一个都没有——换个内核手感就变了。现在把它们统一关掉
+// （见 playerModule/*.ts），键位只在这里定义，所以任何内核都是同一套操作。
+const SEEK_STEP = 5;
+const SEEK_STEP_LARGE = 10;
+const VOLUME_STEP = 0.1;
+
+// 键盘操作没有点击动作，不回声用户无法确认生效（全屏时尤其明显）
+const shortcutHint = ref('');
+let shortcutHintTimer: ReturnType<typeof setTimeout> | null = null;
+
+const flashShortcut = (text: string, duration = 1200) => {
+  shortcutHint.value = text;
+  if (shortcutHintTimer) clearTimeout(shortcutHintTimer);
+  shortcutHintTimer = setTimeout(() => {
+    shortcutHint.value = '';
+    shortcutHintTimer = null;
+  }, duration);
+};
+
+const formatClock = (seconds: number) => {
+  const total = Math.max(0, Math.floor(seconds || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${h > 0 ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(s).padStart(2, '0')}`;
+};
+
+// 焦点在输入框/可编辑区域时不抢键，否则在设置项、搜索框里打字会误触播放控制
+const isEditableTarget = (target: EventTarget | null) => {
+  const el = target as HTMLElement | null;
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toUpperCase();
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+};
+
+const shortcutPlayerMode = () => set.value.playerMode.type;
+
+const togglePlay = async () => {
+  if (!player.value) return;
+  await playerToggle(player.value, shortcutPlayerMode());
+};
+
+const seekBy = async (delta: number) => {
+  if (!player.value) return;
+  // 直播流没有可跳转的时长，方向键保持默认行为
+  if (type.value === 'iptv') return;
+  const mode = shortcutPlayerMode();
+  const current = await playerCurrentTime(player.value, mode);
+  const total = await playerDuration(player.value, mode);
+  const target = Math.max(0, Math.min(total || Number.MAX_SAFE_INTEGER, current + delta));
+  await playerSeek(player.value, mode, target);
+  flashShortcut(`${delta > 0 ? '+' : '-'}${Math.abs(delta)}s  ${formatClock(target)}`);
+};
+
+const changeVolume = async (delta: number) => {
+  if (!player.value) return;
+  const mode = shortcutPlayerMode();
+  const current = await playerVolume(player.value, mode);
+  const next = Math.min(1, Math.max(0, Math.round((current + delta) * 100) / 100));
+  await playerVolume(player.value, mode, next);
+  flashShortcut(`${t('pages.player.shortcut.volume')} ${Math.round(next * 100)}%`);
+};
+
+const toggleMute = async () => {
+  if (!player.value) return;
+  const mode = shortcutPlayerMode();
+  const muted = await playerMuted(player.value, mode);
+  await playerMuted(player.value, mode, !muted);
+  flashShortcut(muted ? t('pages.player.shortcut.unmuted') : t('pages.player.shortcut.muted'));
+};
+
+const toggleFullscreen = () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => { });
+    return;
+  }
+  fsWrapRef.value?.requestFullscreen().catch((err) => console.warn('[fullscreen]', err));
+};
+
+// 上一集/下一集：season 已经按用户选择的正序/倒序排过，indexOf 拿到的就是显示顺序
+const stepEpisode = async (delta: number) => {
+  if (type.value !== 'film') return;
+  const list: string[] = season.value?.[active.flimSource] || [];
+  const index = list.indexOf(active.filmIndex);
+  const target = index < 0 ? '' : list[index + delta];
+  if (!target) return;
+  await fsSelectEpisode(target);
+};
+
+const shortcutRows = computed(() => [
+  { keys: 'Space / K', desc: t('pages.player.shortcut.playPause') },
+  { keys: '← / →', desc: t('pages.player.shortcut.seek', [SEEK_STEP]) },
+  { keys: 'J / L', desc: t('pages.player.shortcut.seek', [SEEK_STEP_LARGE]) },
+  { keys: '↑ / ↓', desc: t('pages.player.shortcut.volume') },
+  { keys: 'M', desc: t('pages.player.shortcut.mute') },
+  { keys: 'F', desc: t('pages.player.shortcut.fullscreen') },
+  { keys: '[ / ]', desc: t('pages.player.shortcut.episode') },
+  { keys: 'Esc', desc: t('pages.player.shortcut.escape') },
+  { keys: '?', desc: t('pages.player.shortcut.help') },
+]);
+
+const onShortcutKeydown = (event: KeyboardEvent) => {
+  // 带修饰键的组合留给系统与应用（Ctrl+R、Cmd+Q、老板键等）
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  // 输入法组字期间不抢键
+  if (event.isComposing || event.keyCode === 229) return;
+  if (isEditableTarget(event.target)) return;
+
+  const key = event.key || '';
+
+  // Esc 先处理：它同时是关闭浮层的通用键，不能被下面的「弹窗阻断」吃掉
+  if (key === 'Escape') {
+    if (isVisible.shortcuts) {
+      isVisible.shortcuts = false;
+      event.preventDefault();
+      return;
+    }
+    if (isVisible.fsPanel) isVisible.fsPanel = false;
+    return;
+  }
+
+  // 弹窗打开时不响应，否则空格会作用到对话框背后的播放器上
+  if (isVisible.download || isVisible.share || isVisible.shortcuts) return;
+
+  switch (key.toLowerCase()) {
+    case ' ':
+    case 'k':
+      event.preventDefault();
+      void togglePlay();
+      return;
+    case 'arrowleft':
+      event.preventDefault();
+      void seekBy(-SEEK_STEP);
+      return;
+    case 'arrowright':
+      event.preventDefault();
+      void seekBy(SEEK_STEP);
+      return;
+    case 'j':
+      event.preventDefault();
+      void seekBy(-SEEK_STEP_LARGE);
+      return;
+    case 'l':
+      event.preventDefault();
+      void seekBy(SEEK_STEP_LARGE);
+      return;
+    case 'arrowup':
+      event.preventDefault();
+      void changeVolume(VOLUME_STEP);
+      return;
+    case 'arrowdown':
+      event.preventDefault();
+      void changeVolume(-VOLUME_STEP);
+      return;
+    case 'm':
+      event.preventDefault();
+      void toggleMute();
+      return;
+    case 'f':
+      event.preventDefault();
+      toggleFullscreen();
+      return;
+    case '[':
+      event.preventDefault();
+      void stepEpisode(-1);
+      return;
+    case ']':
+      event.preventDefault();
+      void stepEpisode(1);
+      return;
+    case '?':
+    case '/':
+      event.preventDefault();
+      isVisible.shortcuts = !isVisible.shortcuts;
+      return;
+    default:
+      return;
+  }
+};
+
+// 只在第一次进播放页提示一次，否则用户永远不知道键盘能用
+const SHORTCUT_TIP_KEY = 'fmplayer_shortcut_tip_shown';
+const maybeShowShortcutTip = () => {
+  try {
+    if (localStorage.getItem(SHORTCUT_TIP_KEY)) return;
+    localStorage.setItem(SHORTCUT_TIP_KEY, '1');
+  } catch {
+    return;
+  }
+  flashShortcut(t('pages.player.shortcut.tip'), 4000);
 };
 
 onMounted(() => {
@@ -747,10 +966,17 @@ onMounted(() => {
   minMaxEvent();
   restoreFullscreenRedirect = installFullscreenRedirect();
   document.addEventListener('fullscreenchange', syncFullscreenState);
+  window.addEventListener('keydown', onShortcutKeydown);
+  maybeShowShortcutTip();
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreenState);
+  window.removeEventListener('keydown', onShortcutKeydown);
+  if (shortcutHintTimer) {
+    clearTimeout(shortcutHintTimer);
+    shortcutHintTimer = null;
+  }
   restoreFullscreenRedirect?.();
   restoreFullscreenRedirect = null;
   clearNextCountdown();
@@ -1902,6 +2128,100 @@ window.electron.ipcRenderer.on('destroy-playerWindow', () => {
                   display: flex;
                   gap: 8px;
                 }
+              }
+            }
+
+            // 快捷键回声：键盘操作没有点击反馈，靠它确认按键生效（全屏时尤其需要）
+            .shortcut-hint {
+              position: absolute;
+              left: 50%;
+              bottom: 88px;
+              transform: translateX(-50%);
+              z-index: 130;
+              padding: 8px 16px;
+              border-radius: 8px;
+              background: rgba(0, 0, 0, 0.78);
+              backdrop-filter: blur(6px);
+              color: #fbfbfb;
+              font-size: 14px;
+              font-variant-numeric: tabular-nums;
+              white-space: nowrap;
+              pointer-events: none;
+            }
+
+            .shortcut-fade-enter-active,
+            .shortcut-fade-leave-active {
+              transition: opacity 0.18s ease;
+            }
+
+            .shortcut-fade-enter-from,
+            .shortcut-fade-leave-to {
+              opacity: 0;
+            }
+
+            // 快捷键一览：按 ? 打开，层级高于选集面板，否则会被它盖住
+            .shortcut-help {
+              position: absolute;
+              inset: 0;
+              z-index: 140;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: rgba(0, 0, 0, 0.55);
+
+              .shortcut-help-card {
+                width: 380px;
+                max-width: calc(100% - 48px);
+                padding: 16px 18px;
+                border-radius: 10px;
+                background: rgba(28, 28, 30, 0.96);
+                backdrop-filter: blur(8px);
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+                color: #fbfbfb;
+              }
+
+              .shortcut-help-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 10px;
+              }
+
+              .shortcut-help-title {
+                font-size: 14px;
+                font-weight: 600;
+              }
+
+              .shortcut-help-close {
+                cursor: pointer;
+                opacity: 0.7;
+
+                &:hover {
+                  opacity: 1;
+                }
+              }
+
+              .shortcut-help-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 6px 0;
+                font-size: 13px;
+
+                & + .shortcut-help-row {
+                  border-top: 1px solid rgba(255, 255, 255, 0.08);
+                }
+              }
+
+              .shortcut-help-keys {
+                flex: 0 0 96px;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                color: #9fd4ff;
+              }
+
+              .shortcut-help-desc {
+                flex: 1;
+                opacity: 0.9;
               }
             }
 

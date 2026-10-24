@@ -230,6 +230,48 @@ const playerPause = async (player: any, playerMode: string) => {
   return pause(player);
 };
 
+// 以下五个是快捷键层要用的读写能力。四个内核都导出了同名方法，但
+// 「读」的一侧不一致：dplayer 的 volume 是方法而非属性，muted 也要落到
+// video 元素上；artplayer/nplayer/xgplayer 都是实例属性。差异只在这里处理，
+// 上层（Play.vue）不必知道用的是哪个内核。
+// 实例形状按内核而异，用 unknown + 就地断言，避免再引入 any。
+type ShortcutPlayerShape = { volume?: number; muted?: boolean; video?: HTMLVideoElement };
+
+const playerToggle = async (player: unknown, playerMode: string) => {
+  const playerModule = await loadPlayerMethod(playerMode);
+  const { toggle } = playerModule;
+  return toggle(player);
+};
+
+const playerCurrentTime = async (player: unknown, playerMode: string) => {
+  const playerModule = await loadPlayerMethod(playerMode);
+  const { currentTime } = playerModule;
+  return currentTime(player) || 0;
+};
+
+const playerDuration = async (player: unknown, playerMode: string) => {
+  const playerModule = await loadPlayerMethod(playerMode);
+  const { duration } = playerModule;
+  return duration(player) || 0;
+};
+
+const playerVolume = async (player: unknown, playerMode: string, value?: number) => {
+  const playerModule = await loadPlayerMethod(playerMode);
+  const { volume } = playerModule;
+  if (typeof value === 'number') return volume(player, value);
+  const instance = player as ShortcutPlayerShape | null;
+  return (playerMode === 'dplayer' ? instance?.video?.volume : instance?.volume) ?? 0;
+};
+
+const playerMuted = async (player: unknown, playerMode: string, value?: boolean) => {
+  // dplayer 的实例上没有 muted 访问器，真正的声音开关在 video 元素上
+  const instance = player as ShortcutPlayerShape | null;
+  const target = playerMode === 'dplayer' ? instance?.video : instance;
+  if (!target) return false;
+  if (typeof value === 'boolean') target.muted = value;
+  return !!target.muted;
+};
+
 const playerTimeUpdate = async (player: any, playerMode: string, callback: any) => {
   const playerModule = await loadPlayerMethod(playerMode);
   const { onTimeUpdate } = playerModule;
@@ -267,6 +309,11 @@ export {
   playerNext,
   playerSeek,
   playerPause,
+  playerToggle,
+  playerCurrentTime,
+  playerDuration,
+  playerVolume,
+  playerMuted,
   playerTimeUpdate,
   playerOnError,
   offPlayerBarrage,

@@ -15,6 +15,9 @@ const options = {
   autoplay: true,
   screenshot: false,
   live: false,
+  // 内置热键关掉（dplayer 默认在 document 上监听 keydown），统一交给 pages/Play.vue，
+  // 否则四个内核的键位/步长各不相同，且 nplayer 根本没有
+  hotkey: false,
   video: {
     url: '',
     type: '',
