@@ -378,6 +378,9 @@ export default {
     download: 'download',
     downloading: 'downloading',
     downloaded: 'The download of the installation package is complete',
+    silentFound: 'New version {0} available',
+    view: 'View',
+    ignore: 'Ignore',
   },
   editSource: {
     source: {

@@ -34,8 +34,8 @@
                   :style="{ width: '100%', background: 'none', overflow: 'hidden' }"
                   :lazy="true"
                   fit="cover"
-                  :loading="renderLoading"
-                  :error="renderError"
+                  :loading="renderImageLoading"
+                  :error="renderImageError"
                 >
                   <template #overlayContent>
                     <div class="op">
@@ -84,7 +84,6 @@
 
 <script setup lang="tsx">
 import 'v3-infinite-loading/lib/style.css';
-import lazyImg from '@/assets/lazy.png';
 
 import _ from 'lodash';
 import moment from 'moment';
@@ -100,26 +99,13 @@ import { usePlayStore } from '@/store';
 import { delHistory, fetchHistoryList, clearHistoryFilmList } from '@/api/history';
 import { fetchSiteList } from '@/api/site';
 import { fetchDetail, t3RuleInit, catvodRuleInit } from '@/utils/cms';
+import { renderImageError, renderImageLoading } from '@/utils/common/imageState';
 import { formatIndex } from '@/utils/common/film';
 import emitter from '@/utils/emitter';
 
 import DetailView from '../../film/Detail.vue';
 
 const store = usePlayStore();
-const renderError = () => {
-  return (
-    <div class="renderIcon" style="width: 100%;">
-      <img src={lazyImg} style="width: 100%; object-fit: cover;" />
-    </div>
-  );
-};
-const renderLoading = () => {
-  return (
-    <div class="renderIcon" style="width: 100%;">
-      <img src={lazyImg} style="width: 100%; object-fit: cover;" />
-    </div>
-  );
-};
 
 const translateDate = computed(() => {
   return {

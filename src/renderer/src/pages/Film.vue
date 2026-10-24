@@ -70,8 +70,8 @@
                   :style="{ height: '100%', background: 'none', overflow: 'hidden' }"
                   :lazy="true"
                   fit="cover"
-                  :loading="renderLoading"
-                  :error="renderError"
+                  :loading="renderImageLoading"
+                  :error="renderImageError"
                 >
                   <template #overlayContent>
                     <div v-if="item.relateSite" class="op">
@@ -130,7 +130,6 @@
 
 <script setup lang="tsx">
 import 'v3-infinite-loading/lib/style.css';
-import lazyImg from '@/assets/lazy.png';
 
 import _ from 'lodash';
 import PQueue from 'p-queue';
@@ -146,6 +145,7 @@ import { usePlayStore, useSettingStore } from '@/store';
 
 import { fetchSiteActive } from '@/api/site';
 import emitter from '@/utils/emitter';
+import { renderImageError, renderImageLoading } from '@/utils/common/imageState';
 import {
   fetchClassify,
   fetchList,
@@ -165,21 +165,6 @@ import TagNav from '../components/tag-nav/index.vue';
 const storePlayer = usePlayStore();
 const storeSetting = useSettingStore();
 const router = useRouter();
-
-const renderError = () => {
-  return (
-    <div class="renderIcon" style="height: 100%">
-      <img src={lazyImg} style="height: 100%; object-fit: cover;" />
-    </div>
-  );
-};
-const renderLoading = () => {
-  return (
-    <div class="renderIcon" style="height: 100%">
-      <img src={lazyImg} style="height: 100%; object-fit: cover;" />
-    </div>
-  );
-};
 
 const queue = new PQueue({ concurrency: 5 }); // 设置并发限制为5
 const infiniteId = ref(+new Date()); // infinite-loading属性重置组件

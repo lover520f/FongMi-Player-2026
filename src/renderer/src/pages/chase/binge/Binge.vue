@@ -40,8 +40,8 @@
               :style="{ width: '100%', background: 'none', overflow: 'hidden' }"
               :lazy="true"
               fit="cover"
-              :loading="renderLoading"
-              :error="renderError"
+              :loading="renderImageLoading"
+              :error="renderImageError"
             >
               <template #overlayContent>
                 <div class="op">
@@ -79,7 +79,6 @@
 
 <script setup lang="tsx">
 import 'v3-infinite-loading/lib/style.css';
-import lazyImg from '@/assets/lazy.png';
 
 import _ from 'lodash';
 import PQueue from 'p-queue';
@@ -94,26 +93,12 @@ import { prefix } from '@/config/global';
 import { t } from '@/locales';
 import { usePlayStore } from '@/store';
 import { catvodRuleInit, fetchDetail, t3RuleInit } from '@/utils/cms';
+import { renderImageError, renderImageLoading } from '@/utils/common/imageState';
 import emitter from '@/utils/emitter';
 
 import DetailView from '../../film/Detail.vue';
 
 const store = usePlayStore();
-
-const renderError = () => {
-  return (
-    <div class="renderIcon" style="width: 100%">
-      <img src={lazyImg} style="width: 100%; object-fit: cover;" />
-    </div>
-  );
-};
-const renderLoading = () => {
-  return (
-    <div class="renderIcon" style="width: 100%">
-      <img src={lazyImg} style="width: 100%; object-fit: cover;" />
-    </div>
-  );
-};
 
 const queue = new PQueue({ concurrency: 5 }); // 设置并发限制为5
 

@@ -377,6 +377,9 @@ export default {
     download: '下载',
     downloading: '下载中',
     downloaded: '安装包下载完成',
+    silentFound: '发现新版本 {0}',
+    view: '查看',
+    ignore: '忽略',
   },
   editSource: {
     source: {

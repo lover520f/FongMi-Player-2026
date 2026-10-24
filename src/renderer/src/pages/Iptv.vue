@@ -36,7 +36,7 @@
                     padding: iptvConfig.ext.thumbnail
                       ? 'none'
                       : '35px 30px'
-                  }" :lazy="true" :loading="renderLoading" :error="renderError" />
+                  }" :lazy="true" :loading="renderImageLoading" :error="renderImageError" />
               </div>
               <div class="card-footer">
                 <span class="card-footer-title text-hide">{{ item.name }}</span>
@@ -66,7 +66,6 @@
 <script setup lang="tsx">
 import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css';
 import 'v3-infinite-loading/lib/style.css';
-import lazyImg from '@/assets/lazy.png';
 
 import { ContextMenu, ContextMenuItem } from '@imengyu/vue3-context-menu';
 import _ from 'lodash';
@@ -83,6 +82,7 @@ import { usePlayStore, useSettingStore } from '@/store';
 import { fetchIptvActive, clearChannel, addChannel, fetchChannelList, delChannelItem } from '@/api/iptv';
 import { setDefault } from '@/api/setting';
 import { parseChannel, checkChannel, stopCheckChannel } from '@/utils/channel';
+import { renderImageError, renderImageLoading } from '@/utils/common/imageState';
 import emitter from '@/utils/emitter';
 import { checkUrlIpv6, copyToClipboardApi } from '@/utils/tool';
 
@@ -93,21 +93,6 @@ import TagNav from '../components/tag-nav/index.vue';
 const storePlayer = usePlayStore();
 const storeSetting = useSettingStore();
 const router = useRouter();
-
-const renderError = () => {
-  return (
-    <div class="renderIcon" style="width: 100%;">
-      <img src={lazyImg} style="width: 100%;object-fit: cover;" />
-    </div>
-  );
-};
-const renderLoading = () => {
-  return (
-    <div class="renderIcon" style="width: 100%;">
-      <img src={lazyImg} style="width: 100%; object-fit: cover;" />
-    </div>
-  );
-};
 
 const isVisible = reactive({
   infiniteLoading: false, // 筛选

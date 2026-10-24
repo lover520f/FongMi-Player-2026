@@ -169,6 +169,7 @@ import _ from 'lodash';
 import { CloseIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { computed, onMounted, ref, watch, reactive } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { fetchSettingList, updateSetting, clearDb } from '@/api/setting';
 import { usePlayStore, useSettingStore } from '@/store';
@@ -206,8 +207,24 @@ const isVisible = reactive({
   disclaimer: false,
 });
 
-const safeDialogData = ref({ data: '', type: 'dns' });
-const webdevDialogData = ref({ webdev: { sync: false, data: { url: "https://dav.jianguoyun.com/dav/", username: "", password: "" } } });
+const route = useRoute();
+const router = useRouter();
+
+// 布局层的「发现新版本」提示会带 update=1 跳过来，这里负责把对话框打开；
+// 打开后清掉 query，避免刷新或前进后退时又弹一次
+watch(
+  () => route.query.update,
+  (value) => {
+    if (value !== '1') return;
+    isVisible.update = true;
+    const rest = { ...route.query };
+    delete rest.update;
+    router.replace({ path: route.path, query: rest });
+  },
+  { immediate: true },
+);
+
+const safeDialogData = ref({ data: '', type: 'dns' });const webdevDialogData = ref({ webdev: { sync: false, data: { url: "https://dav.jianguoyun.com/dav/", username: "", password: "" } } });
 const snifferDialogData = ref({ data: { type: '', url: '' }, type: 'snifferMode' });
 const barrageDialogData = ref({ url: '', key: '', support: [], start: '', mode: '', color: '', content: '' });
 

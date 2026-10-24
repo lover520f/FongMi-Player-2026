@@ -36,34 +36,40 @@ const elementDeal = {
 };
 
 const pipControl = {
+  // el 会在每次 init 里重建：切集/换源会重建播放器，复用同一个节点会让图标层层叠加
   el: document.createElement('div'),
   id: 'pip',
-  pipIcon: publicIcons.pipIcon,
-  tooltip: '画中画' as any,
   handlePip() {},
+  // 不支持画中画的环境直接不渲染这个控件
+  isSupport: () => Boolean((document as any).pictureInPictureEnabled),
   init(player, _: any, tooltip) {
-    this.el.id = 'pip';
+    const el = document.createElement('div');
+    el.id = 'pip';
     const pipDom = document.createElement('div');
     pipDom.className = 'nplayer_icon';
-    pipDom.innerHTML = `${this.pipIcon}`;
+    pipDom.innerHTML = `${publicIcons.pipIcon}`;
 
-    this.tooltip = tooltip;
-    this.tooltip.html = '画中画';
-    this.el.append(pipDom);
+    tooltip.html = '画中画';
+    el.append(pipDom);
 
-    this.handlePip = () => {
+    const handlePip = () => {
       if (!player.loaded) return;
-      if ((document as any).pictureInPictureElement !== player.video) {
-        (player.video as any).requestPictureInPicture();
+      const video = player.video as any;
+      if (!video?.requestPictureInPicture) return;
+      if ((document as any).pictureInPictureElement !== video) {
+        // 需要用户手势，视频未就绪时还会 reject，吞掉避免未处理的 Promise 拒绝
+        video.requestPictureInPicture().catch(() => {});
       } else {
-        (document as any).exitPictureInPicture();
+        (document as any).exitPictureInPicture?.();
       }
     };
+    el.addEventListener('click', handlePip);
 
-    this.el.addEventListener('click', this.handlePip);
+    this.el = el;
+    this.handlePip = handlePip;
   },
   dispose() {
-    this.el.removeEventListener('click', this.handlePip);
+    this.el?.removeEventListener('click', this.handlePip);
     this.el?.remove();
   },
 };
@@ -75,7 +81,10 @@ const options = {
   videoProps: { autoplay: 'true' },
   volumeVertical: true,
   bpControls: {},
-  controls: [['play', 'volume', 'time', 'spacer', 'danmaku-settings', 'settings', 'fullscreen'], ['progress']],
+  controls: [
+    ['play', 'volume', 'time', 'spacer', 'danmaku-settings', 'settings', pipControl, 'fullscreen'],
+    ['progress'],
+  ],
   plugins: [new nplayerDanmaku({ autoInsert: false })],
 };
 
