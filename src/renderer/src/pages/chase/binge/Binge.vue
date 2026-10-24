@@ -15,7 +15,7 @@
       </div>
       <div class="right-operation-container"></div>
     </div>
-    <div class="main">
+    <div ref="mainRef" class="main">
       <t-row :gutter="[16, 16]" style="margin: 0">
         <t-col
           v-for="item in bingeConfig.data"
@@ -85,7 +85,7 @@ import PQueue from 'p-queue';
 import { AssignmentCheckedIcon, DeleteIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { computed, onActivated, onMounted, ref, reactive } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onMounted, ref, reactive, nextTick } from 'vue';
 
 import { clearStar, delStar, fetchStarList } from '@/api/star';
 import { fetchSiteList } from '@/api/site';
@@ -120,9 +120,18 @@ const isVisible = reactive({
 const bingeConfig = ref<any>({
   data: [],
 });
-const siteConfig = ref({
+const siteConfig = ref<{ data: Array<{ id?: string; name?: string }> }>({
   data: [],
 });
+
+const mainRef = ref<HTMLElement | null>(null);
+
+// keep-alive 切走时 DOM 会被摘下来，再挂回去滚动位置就归零，
+// 所以边滚边记，别指望 deactivated 那一刻还读得到
+let lastScrollTop = 0;
+const onScrollEvent = (): void => {
+  lastScrollTop = mainRef.value?.scrollTop ?? 0;
+};
 
 const infiniteId = ref(+new Date());
 
@@ -132,10 +141,14 @@ const emptyTip = computed(() =>
 );
 
 onMounted(async () => {
+  mainRef.value?.addEventListener('scroll', onScrollEvent, { passive: true });
   const site_res = await fetchSiteList();
   if (_.has(site_res, 'data') && !_.isEmpty(site_res['data'])) {
     siteConfig.value.data = site_res['data'];
   }
+});
+onBeforeUnmount(() => {
+  mainRef.value?.removeEventListener('scroll', onScrollEvent);
 });
 
 let isFirstActivate = true;
@@ -146,21 +159,37 @@ onActivated(() => {
     isFirstActivate = false;
     return;
   }
-  refreshBinge();
+  refreshInPlace();
 });
+
+// 补上站点名，卡片左下角要显示来源
+type StarRow = {
+  id: string;
+  relateId?: string;
+  siteName?: string;
+  site?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+const decorate = (items: StarRow[]): StarRow[] => {
+  for (const item of items) {
+    const findItem = siteConfig.value.data.find(({ id }) => id === item.relateId);
+    if (findItem) item.site = { ...findItem };
+    item.siteName = findItem?.name || '';
+  }
+  return items;
+};
 
 const getBingeList = async () => {
   const { pageIndex, pageSize } = pagination.value;
 
   const star_res = await fetchStarList(pageIndex, pageSize);
 
-  for (const item of star_res.data) {
-    const findItem: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
-    if (findItem) item.site = { ...findItem };
-    item.siteName = findItem ? findItem.name : '';
-  }
-
-  bingeConfig.value.data = _.unionWith(bingeConfig.value.data, star_res.data, _.isEqual) as any;
+  // 原来这里是 unionWith + isEqual：每个新条目跟整张收藏列表深比较一遍，
+  // 收藏一多就是平方级。按 id 去重是线性的
+  const seen = new Set(bingeConfig.value.data.map((item) => item.id));
+  const fresh = decorate(star_res.data).filter((item) => !seen.has(item.id));
+  bingeConfig.value.data = bingeConfig.value.data.concat(fresh);
 
   pagination.value.count = star_res.total;
   pagination.value.pageIndex++;
@@ -260,7 +289,8 @@ const removeEvent = (item) => {
 
 // 更新
 const updateVideoRemarks = (item, res) => {
-  const index = _.findIndex(bingeConfig.value.data, { ...item });
+  const index = _.findIndex(bingeConfig.value.data, { id: item.id });
+  if (index < 0) return;
   const isUpdate = res.vod_remarks !== bingeConfig.value.data[index].videoRemarks;
   bingeConfig.value.data[index].videoUpdate = isUpdate;
   bingeConfig.value.data[index].videoRemarks = res.vod_remarks;
@@ -344,9 +374,51 @@ const defaultSet = () => {
   pagination.value.pageIndex = 0;
 };
 
+// 数据被整体替换（导入/恢复）时只能清空重来
 const refreshBinge = () => {
   console.log('[binge][bus][refresh]');
   defaultSet();
+};
+
+// 切回本页时刷新：只重取最靠前的几页换掉头部，其余原样留着。
+// 不清空、不动 infiniteId —— 卡片不会先掉到 0 张，滚动位置也留得住。
+// 收藏是插入序，新增的排在最后，头部刷新主要用来让「取消收藏」尽快生效。
+const REFRESH_PAGES = 6;
+let refreshToken = 0;
+const refreshInPlace = async () => {
+  const token = ++refreshToken;
+  const { pageSize } = pagination.value;
+  const pages = Math.min(REFRESH_PAGES, Math.max(1, Math.ceil(bingeConfig.value.data.length / pageSize)));
+  const keepTop = lastScrollTop || mainRef.value?.scrollTop || 0;
+
+  try {
+    const responses = await Promise.all(
+      Array.from({ length: pages }, (_, page) => fetchStarList(page, pageSize)),
+    );
+    if (token !== refreshToken) return; // 期间又切走/刷新了，这份结果作废
+
+    const head: StarRow[] = [];
+    const headIds = new Set<string>();
+    for (const item of decorate(responses.flatMap((res) => res.data || []))) {
+      if (headIds.has(item.id)) continue;
+      headIds.add(item.id);
+      head.push(item);
+    }
+
+    bingeConfig.value.data = head.concat(bingeConfig.value.data.filter((item) => !headIds.has(item.id)));
+    pagination.value.count = responses[0]?.total ?? bingeConfig.value.data.length;
+    // 向下取整：宁可下一页重叠（有 id 去重）也不能漏页
+    pagination.value.pageIndex = Math.floor(bingeConfig.value.data.length / pageSize);
+    console.log(`[binge][refreshInPlace] pages:${pages} items:${bingeConfig.value.data.length}`);
+  } catch (err) {
+    // 刷新失败不该连带把已有列表也弄没，静默保留旧的
+    console.log('[binge][refreshInPlace][error]', err);
+  } finally {
+    await nextTick();
+    // 等一帧再写：DOM 刚挂回去时滚动容器还没有有效布局，这时候赋值会被吞掉
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (mainRef.value) mainRef.value.scrollTop = keepTop;
+  }
 };
 </script>
 

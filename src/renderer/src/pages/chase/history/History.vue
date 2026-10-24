@@ -90,7 +90,7 @@ import moment from 'moment';
 import { DeleteIcon, LaptopIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { computed, onActivated, onMounted, ref, reactive } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onMounted, ref, reactive, nextTick } from 'vue';
 
 import { prefix } from '@/config/global';
 import { t } from '@/locales';
@@ -115,15 +115,38 @@ const translateDate = computed(() => {
   };
 });
 
-const isEmpty = computed(() => !options.value.today.length && !options.value.week.length && !options.value.ago.length);
+const isEmpty = computed(() => !list.value.length);
 const emptyTip = computed(() =>
   isEmpty.value ? t('pages.chase.infiniteLoading.noData') : t('pages.chase.infiniteLoading.complete'),
 );
 
-const options = ref({
-  today: [],
-  week: [],
-  ago: [],
+// 一份扁平数据按日期分桶。以前是三个数组各自 push，
+// 刷新时只能整体清空重来；有了唯一的源，原地刷新才做得到
+type HistoryRow = {
+  id: string;
+  date: number;
+  relateId?: string;
+  siteName?: string;
+  site?: Record<string, unknown>;
+  videoImage?: string;
+  videoName?: string;
+  videoIndex: string;
+  playEnd?: boolean;
+  watchTime?: number;
+  duration?: number;
+  [key: string]: unknown;
+};
+
+const list = ref<HistoryRow[]>([]);
+const options = computed<Record<'today' | 'week' | 'ago', HistoryRow[]>>(() => {
+  const buckets = { today: [] as HistoryRow[], week: [] as HistoryRow[], ago: [] as HistoryRow[] };
+  for (const item of list.value) {
+    const timeDiff = filterDate(item.date);
+    if (timeDiff === 0) buckets.today.push(item);
+    else if (timeDiff < 7) buckets.week.push(item);
+    else buckets.ago.push(item);
+  }
+  return buckets;
 });
 const pagination = ref({
   pageIndex: 0,
@@ -141,15 +164,39 @@ const isVisible = reactive({
   loading: false,
 });
 const infiniteId = ref(+new Date());
-const siteConfig = ref({
+const siteConfig = ref<{ data: Array<{ id?: string; name?: string }> }>({
   data: [],
 });
 
+const contentRef = ref<HTMLElement | null>(null);
+
+// 组件根节点上挂着 Chase 页给的 .content-wrapper，滚动就发生在这个根节点上，
+// 所以要从它本身开始找，不能从 parentElement 开始
+const findScroller = (): HTMLElement | null => {
+  let el: HTMLElement | null = contentRef.value;
+  while (el) {
+    if (el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY)) return el;
+    el = el.parentElement;
+  }
+  return null;
+};
+
+// keep-alive 切走时 DOM 会被摘下来，再挂回去滚动位置就归零，
+// 所以边滚边记，别指望 deactivated 那一刻还读得到
+let lastScrollTop = 0;
+const onScrollEvent = (): void => {
+  lastScrollTop = contentRef.value?.scrollTop ?? 0;
+};
+
 onMounted(async () => {
+  contentRef.value?.addEventListener('scroll', onScrollEvent, { passive: true });
   const site_res = await fetchSiteList();
   if (_.has(site_res, 'data') && !_.isEmpty(site_res['data'])) {
     siteConfig.value.data = site_res['data'];
   }
+});
+onBeforeUnmount(() => {
+  contentRef.value?.removeEventListener('scroll', onScrollEvent);
 });
 
 let isFirstActivate = true;
@@ -160,25 +207,32 @@ onActivated(() => {
     isFirstActivate = false;
     return;
   }
-  refreshHistory();
+  refreshInPlace();
 });
+
+// 补上站点名，卡片左下角要显示来源
+const decorate = (items: HistoryRow[]): HistoryRow[] => {
+  for (const item of items) {
+    const findItem = siteConfig.value.data.find(({ id }) => id === item.relateId);
+    if (findItem) item.site = { ...findItem };
+    item.siteName = findItem?.name || '';
+  }
+  return items;
+};
+
+// 按 id 去重后接在后面：分页边界重叠或刷新时都不会出重复卡片
+const appendUnique = (items: HistoryRow[]): void => {
+  const seen = new Set(list.value.map((item) => item.id));
+  const fresh = items.filter((item) => !seen.has(item.id));
+  if (fresh.length) list.value = list.value.concat(fresh);
+};
 
 const getHistoryList = async () => {
   const { pageIndex, pageSize } = pagination.value;
 
   const history_res = await fetchHistoryList(pageIndex, pageSize, 'film');
 
-  for (const item of history_res.data) {
-    const findItem: any = siteConfig.value.data.find(({ id }) => id === item.relateId);
-    if (findItem) item.site = { ...findItem };
-    item.siteName = findItem ? findItem['name'] : '';
-    const timeDiff = filterDate(item.date);
-    let timeKey;
-    if (timeDiff === 0) timeKey = 'today';
-    else if (timeDiff < 7) timeKey = 'week';
-    else timeKey = 'ago';
-    options.value[timeKey].push(item);
-  }
+  appendUnique(decorate(history_res.data));
 
   pagination.value.count = history_res.total;
   pagination.value.pageIndex++;
@@ -254,14 +308,9 @@ const removeEvent = (item) => {
   const { id } = item;
   const handleDelete = async () => {
     confirmDia.hide();
-    const timeDiff = filterDate(item.date);
-    let timeKey;
-    if (timeDiff === 0) timeKey = 'today';
-    else if (timeDiff < 7) timeKey = 'week';
-    else timeKey = 'ago';
     try {
       await delHistory(id);
-      options.value[timeKey] = _.reject(options.value[timeKey], { id });
+      list.value = _.reject(list.value, { id });
       pagination.value.count--;
     } catch (err) {
       console.error('[history][removeEvent][error]', err);
@@ -329,18 +378,60 @@ const formatProgress = (start, all) => {
 };
 
 const defaultSet = () => {
-  options.value = {
-    today: [],
-    week: [],
-    ago: [],
-  };
+  list.value = [];
   infiniteId.value++;
   pagination.value.pageIndex = 0;
 };
 
+// 数据被整体替换（导入/恢复）时只能清空重来
 const refreshHistory = () => {
   console.log('[history][bus][refresh]');
   defaultSet();
+};
+
+// 切回本页时刷新：只重取最靠前的几页换掉头部，其余原样留着。
+// 不清空、不动 infiniteId —— 卡片不会先掉到 0 张，滚动位置也留得住。
+// 不按已加载页数全量重取：滚得深的人一进一页就要发几十个请求。
+const REFRESH_PAGES = 3;
+let refreshToken = 0;
+const refreshInPlace = async () => {
+  const token = ++refreshToken;
+  const { pageSize } = pagination.value;
+  const pages = Math.min(REFRESH_PAGES, Math.max(1, Math.ceil(list.value.length / pageSize)));
+  const scroller = findScroller();
+  const keepTop = lastScrollTop || scroller?.scrollTop || 0;
+
+  try {
+    const responses = await Promise.all(
+      Array.from({ length: pages }, (_, page) => fetchHistoryList(page, pageSize, 'film')),
+    );
+    if (token !== refreshToken) return; // 期间又切走/刷新了，这份结果作废
+
+    const head: HistoryRow[] = [];
+    const headIds = new Set<string>();
+    for (const item of decorate(responses.flatMap((res) => res.data || []))) {
+      if (headIds.has(item.id)) continue;
+      headIds.add(item.id);
+      head.push(item);
+    }
+
+    // 播放过的记录日期会变成「现在」跑到最前面，它原来那条要从后面摘掉，
+    // 否则同一部片会在列表里出现两次
+    list.value = head.concat(list.value.filter((item) => !headIds.has(item.id)));
+    pagination.value.count = responses[0]?.total ?? list.value.length;
+    // 向下取整：宁可下一页重叠（有 id 去重）也不能漏页
+    pagination.value.pageIndex = Math.floor(list.value.length / pageSize);
+    console.log(`[history][refreshInPlace] pages:${pages} items:${list.value.length}`);
+  } catch (err) {
+    // 刷新失败不该连带把已有列表也弄没，静默保留旧的
+    console.log('[history][refreshInPlace][error]', err);
+  } finally {
+    await nextTick();
+    // 等一帧再写：DOM 刚挂回去时滚动容器还没有有效布局，这时候赋值会被吞掉
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const target = scroller ?? findScroller();
+    if (target) target.scrollTop = keepTop;
+  }
 };
 </script>
 
