@@ -45,6 +45,9 @@ watch(
   (val) => {
     formVisible.value = val;
   },
+  // 必须 immediate：本组件现在由父级异步组件按需加载，挂载时 props.visible 可能已经是 true
+  // （未同意协议的用户），不加 immediate 就永远等不到变化，弹窗不显示。
+  { immediate: true },
 );
 
 const confirmEvent = () => {

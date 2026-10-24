@@ -128,7 +128,6 @@
 
 <script setup lang="ts">
 import _ from 'lodash';
-import moment from 'moment';
 import { DeleteIcon, SearchIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { computed, nextTick, onActivated, onMounted, reactive, ref, watch } from 'vue';
@@ -146,6 +145,23 @@ import emptyImage from '@/assets/empty.svg?raw';
 
 const route = useRoute();
 
+// 这里原先用 moment，但 moment 只有异步页在用（历史/详情/播放），
+// SearchBar 是首屏组件，为了三次日期格式化把整个 moment（约 150KB）拖进首屏不划算。
+// 原本只用到 format / subtract / unix 三个能力，用原生 Date 足够，且严格按本地时区。
+const formatDate = (date: Date, sep: '-' | '/' = '-') => {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  return `${y}${sep}${m}${sep}${d}`;
+};
+const today = (sep: '-' | '/' = '-') => formatDate(new Date(), sep);
+const daysAgo = (n: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() - n);
+  return date;
+};
+const unixNow = () => Math.floor(Date.now() / 1000);
+
 const isVisible = reactive({
   load: true,
   popup: false,
@@ -162,7 +178,7 @@ const hotConfig = reactive({
   hotUrl: '',
   hotClass: 'episode', // 仅酷云[旧]生效
   hotSource: 1,
-  hotUpdateTime: moment().format('YYYY-MM-DD'),
+  hotUpdateTime: today(),
   hotData: [],
   hotOption: [] || {},
 }) as any;
@@ -489,23 +505,23 @@ const clearSearchHistory = async () => {
 // 热播映射
 const hotTypeMappings = {
   komect: {
-    hotUpdateTime: () => moment().format('YYYY/MM/DD'),
+    hotUpdateTime: () => today('/'),
     hotSource: '电影',
   },
   douban: {
-    hotUpdateTime: () => moment().format('YYYY/MM/DD'),
+    hotUpdateTime: () => today('/'),
     hotSource: 'tv_hot',
   },
   enlightent: {
-    hotUpdateTime: () => moment().format('YYYY/MM/DD'),
+    hotUpdateTime: () => today('/'),
     hotSource: 'tv',
   },
   kuyun: {
-    hotUpdateTime: () => moment().format('YYYY-MM-DD'),
+    hotUpdateTime: () => today(),
     hotSource: 1,
   },
   kylive: {
-    hotUpdateTime: () => moment().format('YYYY-MM-DD'),
+    hotUpdateTime: () => today(),
     hotSource: 0,
   },
 };
@@ -559,8 +575,8 @@ const changeHotSource = (flag) => {
 const getHotList = async (retryCount = 1, reqId = hotReqId) => {
   try {
     const retryLimit = 4; // 重试次数 实际为 3 次
-    const date = moment().subtract(retryCount, 'days');
-    const dateFormat = hotConfig.hotType === 'enlightent' ? date.format('YYYY/MM/DD') : date.format('YYYY-MM-DD');
+    const date = daysAgo(retryCount);
+    const dateFormat = formatDate(date, hotConfig.hotType === 'enlightent' ? '/' : '-');
 
     let queryHotList;
     switch (hotConfig.hotType) {
@@ -606,7 +622,7 @@ const searchEvent = async (item) => {
   if (activeRouteName.value === 'FilmIndex' || activeRouteName.value === 'AnalyzeIndex') {
     if (item && _.findIndex(searchList.value, { title: item }) === -1) {
       const doc = {
-        date: moment().unix(),
+        date: unixNow(),
         title: item,
         type: 'search',
       };
