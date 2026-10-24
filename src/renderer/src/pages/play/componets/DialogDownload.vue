@@ -33,7 +33,6 @@
 
 <script setup lang="ts">
 import { useClipboard } from '@vueuse/core';
-import _ from 'lodash';
 import { ref, watch } from 'vue';
 import { MessagePlugin } from 'tdesign-vue-next';
 

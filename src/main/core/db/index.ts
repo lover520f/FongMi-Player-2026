@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import _ from 'lodash';
+import forEach from 'lodash/forEach';
 import LodashId from 'lodash-id';
 import Datastore from 'lowdb';
 import FileSync from 'lowdb/adapters/FileSync';
@@ -19,7 +19,7 @@ const init = () => {
   const hasTable = (tableName) => db.read().has(tableName).value();
   if (!hasTable('tbl_setting')) {
     db.set('tbl_setting', []).write();
-    _.forEach(tblSetting, (item) => {
+    forEach(tblSetting, (item) => {
       db.get('tbl_setting').insert({ key: item.key, value: item.value }).write();
     });
   }

@@ -31,7 +31,6 @@
   </t-dialog>
 </template>
 <script setup lang="ts">
-import _ from 'lodash';
 import { PlayCircleStrokeIcon, RefreshIcon, RollbackIcon, RollfrontIcon } from 'tdesign-icons-vue-next';
 import { onMounted, ref, watch } from 'vue';
 

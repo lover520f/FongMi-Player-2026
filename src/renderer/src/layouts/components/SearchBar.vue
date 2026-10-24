@@ -127,7 +127,8 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import findIndex from 'lodash/findIndex';
+import size from 'lodash/size';
 import { DeleteIcon, SearchIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { computed, nextTick, onActivated, onMounted, reactive, ref, watch } from 'vue';
@@ -596,7 +597,7 @@ const getHotList = async (retryCount = 1, reqId = hotReqId) => {
 
     if (reqId !== hotReqId) return; // 切源后过期的响应直接丢弃
 
-    if (_.size(queryHotList)) {
+    if (size(queryHotList)) {
       isVisible.load = false;
       hotConfig.hotData = queryHotList;
       hotConfig.hotUpdateTime = dateFormat;
@@ -620,13 +621,13 @@ const searchEvent = async (item) => {
   applySearchValue(item ?? '');
   suggestIndex.value = -1;
   if (activeRouteName.value === 'FilmIndex' || activeRouteName.value === 'AnalyzeIndex') {
-    if (item && _.findIndex(searchList.value, { title: item }) === -1) {
+    if (item && findIndex(searchList.value, { title: item }) === -1) {
       const doc = {
         date: unixNow(),
         title: item,
         type: 'search',
       };
-      const searchListSize = _.size(searchList.value);
+      const searchListSize = size(searchList.value);
       if (searchListSize <= 5) {
         searchList.value.unshift(doc);
       } else {

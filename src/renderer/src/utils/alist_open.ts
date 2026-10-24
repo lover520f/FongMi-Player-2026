@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import isArray from 'lodash/isArray';
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import axiosRetry from 'axios-retry';
 import JSON5 from 'json5';
@@ -63,7 +63,7 @@ async function get_drives(name) {
       settings.v3 = false;
       let { data } = await http.get(server + '/api/public/settings');
       data = data.data;
-      if (_.isArray(data)) {
+      if (isArray(data)) {
         settings.title = data.find((x) => x.key == 'title')?.value;
         settings.v3 = false;
         settings.version = data.find((x) => x.key == 'version')?.value;

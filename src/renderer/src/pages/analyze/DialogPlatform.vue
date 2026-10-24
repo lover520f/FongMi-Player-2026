@@ -12,7 +12,6 @@
   </div>
 </template>
 <script setup lang="ts">
-import _ from 'lodash';
 import { reactive, ref, watch } from 'vue';
 
 import PLATFORM_CONFIG from '@/config/platform';

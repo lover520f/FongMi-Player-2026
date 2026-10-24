@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import _ from 'lodash';
+import isEmpty from 'lodash/isEmpty';
 
 import logger from '../../../logger';
 
@@ -29,7 +29,7 @@ const enlightentHot = async (date, sort, channelType, day) => {
     logger.info(response.text());
 
     const data = await response.text();
-    if (data && !_.isEmpty(data.content)) {
+    if (data && !isEmpty(data.content)) {
       return data.content.map((item) => ({
         vod_id: item.nameId,
         vod_name: item.name,

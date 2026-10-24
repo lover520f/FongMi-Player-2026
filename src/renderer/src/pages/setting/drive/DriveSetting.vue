@@ -81,7 +81,9 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import remove from 'lodash/remove';
 import { AddIcon, CheckIcon, PoweroffIcon, RemoveIcon, SearchIcon, UserIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { onActivated, onMounted, ref, reactive, watch } from 'vue';
@@ -157,14 +159,14 @@ const rehandleSortChange = (sortVal, options) => {
 const getData = async () => {
   try {
     const res = await fetchDrivePage(searchValue.value);
-    if (_.has(res, 'default') && res['default']) {
+    if (has(res, 'default') && res['default']) {
       driveTableConfig.value.default = res.default;
     }
-    if (_.has(res, 'data') && res['data']) {
+    if (has(res, 'data') && res['data']) {
       driveTableConfig.value.data = res.data;
       driveTableConfig.value.rawData = res.data;
     }
-    if (_.has(res, 'total') && res['total']) {
+    if (has(res, 'total') && res['total']) {
       pagination.total = res.total;
     }
   } catch (e) {
@@ -232,8 +234,8 @@ const switchStatus = async (row) => {
 
 const tableUpdateIsActive = (select, isActiveValue: boolean) => {
   select.forEach((itemId) => {
-    const item: any = _.find(driveTableConfig.value.data, { id: itemId });
-    const rawTtem: any = _.find(driveTableConfig.value.rawData, { id: itemId });
+    const item: any = find(driveTableConfig.value.data, { id: itemId });
+    const rawTtem: any = find(driveTableConfig.value.rawData, { id: itemId });
     if (item) item.isActive = isActiveValue;
     if (item) rawTtem.isActive = isActiveValue;
   });
@@ -255,8 +257,8 @@ const tableAdd = (item) => {
 
 const tableDelete = (select) => {
   select.forEach((itemId) => {
-    _.remove(driveTableConfig.value.data, (item: any) => item.id === itemId);
-    _.remove(driveTableConfig.value.rawData, (item: any) => item.id === itemId);
+    remove(driveTableConfig.value.data, (item: any) => item.id === itemId);
+    remove(driveTableConfig.value.rawData, (item: any) => item.id === itemId);
   });
 };
 

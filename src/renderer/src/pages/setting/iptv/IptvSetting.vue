@@ -89,7 +89,9 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import remove from 'lodash/remove';
 import { AddIcon, CheckIcon, PoweroffIcon, RemoveIcon, SearchIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { onActivated, onMounted, ref, reactive, watch } from 'vue';
@@ -189,14 +191,14 @@ const rehandleFilterChange = (filters, ctx) => {
 const getData = async () => {
   try {
     const res = await fetchIptvPage(searchValue.value);
-    if (_.has(res, 'default') && res['default']) {
+    if (has(res, 'default') && res['default']) {
       iptvTableConfig.value.default = res.default;
     }
-    if (_.has(res, 'data') && res['data']) {
+    if (has(res, 'data') && res['data']) {
       iptvTableConfig.value.data = res.data;
       iptvTableConfig.value.rawData = res.data;
     }
-    if (_.has(res, 'total') && res['total']) {
+    if (has(res, 'total') && res['total']) {
       pagination.total = res.total;
     }
   } catch (e) {
@@ -264,8 +266,8 @@ const switchStatus = async (row) => {
 
 const tableUpdateIsActive = (select, isActiveValue: boolean) => {
   select.forEach((itemId) => {
-    const item: any = _.find(iptvTableConfig.value.data, { id: itemId });
-    const rawTtem: any = _.find(iptvTableConfig.value.rawData, { id: itemId });
+    const item: any = find(iptvTableConfig.value.data, { id: itemId });
+    const rawTtem: any = find(iptvTableConfig.value.rawData, { id: itemId });
     if (item) item.isActive = isActiveValue;
     if (item) rawTtem.isActive = isActiveValue;
   });
@@ -273,8 +275,8 @@ const tableUpdateIsActive = (select, isActiveValue: boolean) => {
 
 const tableDelete = (select) => {
   select.forEach((itemId) => {
-    _.remove(iptvTableConfig.value.data, (item: any) => item.id === itemId);
-    _.remove(iptvTableConfig.value.rawData, (item: any) => item.id === itemId);
+    remove(iptvTableConfig.value.data, (item: any) => item.id === itemId);
+    remove(iptvTableConfig.value.rawData, (item: any) => item.id === itemId);
   });
 };
 

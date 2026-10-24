@@ -136,7 +136,13 @@
 <script setup lang="tsx">
 import 'v3-infinite-loading/lib/style.css';
 
-import _ from 'lodash';
+import compact from 'lodash/compact';
+import find from 'lodash/find';
+import findIndex from 'lodash/findIndex';
+import has from 'lodash/has';
+import isEmpty from 'lodash/isEmpty';
+import map from 'lodash/map';
+import uniq from 'lodash/uniq';
 import PQueue from 'p-queue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { RootListIcon } from 'tdesign-icons-vue-next';
@@ -523,24 +529,24 @@ const searchGroup = (type: string) => {
 const getSetting = async () => {
   try {
     const data = await fetchSiteActive();
-    if (_.has(data, 'default') && !_.isEmpty(data['default'])) {
+    if (has(data, 'default') && !isEmpty(data['default'])) {
       siteConfig.value.default = data['default'];
       active.value.nav = data['default']['id'];
     } else {
       infiniteCompleteTip.value = t('pages.film.infiniteLoading.noData');
     }
-    if (_.has(data, 'data') && !_.isEmpty(data['data'])) {
+    if (has(data, 'data') && !isEmpty(data['data'])) {
       siteConfig.value.data = data['data'];
     }
-    if (_.has(data, 'filter') && !_.isEmpty(data['filter'])) {
+    if (has(data, 'filter') && !isEmpty(data['filter'])) {
       siteConfig.value.filter = data['filter'];
     }
-    if (_.has(data, 'search') && !_.isEmpty(data['search'])) {
+    if (has(data, 'search') && !isEmpty(data['search'])) {
       siteConfig.value.search = data['search'];
       siteConfig.value.searchGroup = searchGroup(data['search']);
     }
     // 一个源都没有：整页换成空态并给出「前往设置」，而不是只留一行提示文案
-    if (_.isEmpty(active.value.nav)) {
+    if (isEmpty(active.value.nav)) {
       pageState.value = 'noSource';
       isVisible.infiniteLoading = false;
       return;
@@ -559,9 +565,9 @@ const getSetting = async () => {
 // 获取地区
 const arrangeCmsArea = () => {
   const { rawList } = filmData.value;
-  const data = _.compact(_.map(rawList, (item) => (item['vod_area'] || '').split(',')[0]));
+  const data = compact(map(rawList, (item) => (item['vod_area'] || '').split(',')[0]));
   data.unshift('全部');
-  const dataFormat = _.uniq(data);
+  const dataFormat = uniq(data);
 
   const listFormat = dataFormat.map((item) => {
     return { n: item, v: item === '全部' ? '' : item };
@@ -571,7 +577,7 @@ const arrangeCmsArea = () => {
   const currentFilter = filter.value.data[id];
   if (!currentFilter) return;
 
-  const index = _.findIndex(currentFilter, { key: 'area' });
+  const index = findIndex(currentFilter, { key: 'area' });
   if (index === -1) return;
   console.log(`[film] cms filter area: `, listFormat);
   filter.value.data[id][index].value = listFormat;
@@ -584,14 +590,14 @@ const arrangeCmsYear = () => {
   const { type } = siteConfig.value.default;
   const currentFilter = filter.value.data[id];
   if (!currentFilter) return;
-  const index = _.findIndex(currentFilter, { key: 'year' });
+  const index = findIndex(currentFilter, { key: 'year' });
   if (index === -1) return;
 
   let data;
-  if (type === 0) data = _.compact(_.map(rawList, (item) => item['vod_year']));
-  else data = _.compact(_.map(rawList, (item) => (item['vod_year'] || '').split('–')[0]));
+  if (type === 0) data = compact(map(rawList, (item) => item['vod_year']));
+  else data = compact(map(rawList, (item) => (item['vod_year'] || '').split('–')[0]));
   data.unshift('全部');
-  const dataFormat = _.uniq(data);
+  const dataFormat = uniq(data);
   const listFormat = dataFormat.map((item) => {
     return { n: item, v: item === '全部' ? '' : item };
   });
@@ -626,7 +632,7 @@ const categoriesFilter = (classData: any[]): any[] => {
 const classFilter = (filters) => {
   const result = {};
 
-  if (_.has(filters, active.value.class)) {
+  if (has(filters, active.value.class)) {
     filters[active.value.class].forEach((item) => {
       result[item.key] = item.value[0]?.v ?? '全部';
     });
@@ -648,7 +654,7 @@ const getClassList = async (site) => {
     const classDataFormat = categoriesFilter(classData || []);
     const hasCategoryConfig = !!(site.categories && String(site.categories).trim());
 
-    if (_.isEmpty(classDataFormat)) {
+    if (isEmpty(classDataFormat)) {
       if (hasCategoryConfig) {
         infiniteCompleteTip.value = t('pages.film.infiniteLoading.categoryError');
         isVisible.loadClass = false;
@@ -662,7 +668,7 @@ const getClassList = async (site) => {
       classConfig.value.data = classDataFormat;
       const classItem = classDataFormat[0];
       active.value.class = classItem['type_id'];
-      if (!_.isEmpty(filters)) classFilter(filters);
+      if (!isEmpty(filters)) classFilter(filters);
       isVisible.loadClass = true;
     }
 
@@ -685,7 +691,7 @@ const getClassList = async (site) => {
 // 切换分类
 const changeClassEvent = (key) => {
   active.value.class = key;
-  if (!_.isEmpty(filter.value.data)) classFilter(filter.value.data);
+  if (!isEmpty(filter.value.data)) classFilter(filter.value.data);
   filterApiEvent();
   searchTxt.value = '';
   infiniteCompleteTip.value = t('pages.film.infiniteLoading.noMore');
@@ -757,7 +763,7 @@ const load = async (
   // 第一页即整页首屏：数据到达前先摆骨架，别让容器空着（后续分页不再重置占位）
   if (pagination.value.pageIndex <= 1) beginListWait();
   try {
-    if (_.isEmpty(active.value.nav)) {
+    if (isEmpty(active.value.nav)) {
       infiniteCompleteTip.value = t('pages.film.infiniteLoading.noData');
       $state.complete();
       return;
@@ -879,7 +885,7 @@ const getSearchList = async () => {
         ? resultSearch.filter((item) => item?.vod_name.indexOf(searchTxt.value) > -1)
         : resultSearch;
 
-    if (resultSearch.length > 0 && !_.has(resultSearch[0], 'vod_pic')) {
+    if (resultSearch.length > 0 && !has(resultSearch[0], 'vod_pic')) {
       if ([0, 1].includes(currentSite.type)) {
         const ids = resultSearch.map((item) => item.vod_id);
         resultDetail = await fetchDetail(currentSite, ids.join(','));
@@ -940,7 +946,7 @@ const changeSitesEvent = async (key: string) => {
   isVisible.catvod = false;
   infiniteCompleteTip.value = t('pages.film.infiniteLoading.noMore');
   searchTxt.value = '';
-  const res = _.find(siteConfig.value.data, { id: key });
+  const res = find(siteConfig.value.data, { id: key });
   active.value.nav = key;
   siteConfig.value.default = res;
   beginListWait();
@@ -1003,7 +1009,7 @@ const playEvent = async (item) => {
 
   try {
     let site = siteConfig.value.default;
-    if (_.has(item, 'relateSite')) {
+    if (has(item, 'relateSite')) {
       const relateSite = item.relateSite;
       site = relateSite;
       try {

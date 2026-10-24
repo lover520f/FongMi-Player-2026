@@ -165,7 +165,9 @@
 
 <script setup lang="ts">
 import { ipVersion } from 'is-ip';
-import _ from 'lodash';
+import forIn from 'lodash/forIn';
+import includes from 'lodash/includes';
+import split from 'lodash/split';
 import { CloseIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 import { computed, onMounted, ref, watch, reactive } from 'vue';
@@ -600,11 +602,11 @@ const isLegalShortcut = (item) => {
   let isPubilcKeys = false;
   let isSpecialKeys = false;
 
-  const keys = _.split(item, '+');
+  const keys = split(item, '+');
 
-  _.forIn(keys, (e) => {
-    if (_.includes(specialKeys, e)) isSpecialKeys = true;
-    if (_.includes(pubilcKeys, e)) isPubilcKeys = true;
+  forIn(keys, (e) => {
+    if (includes(specialKeys, e)) isSpecialKeys = true;
+    if (includes(pubilcKeys, e)) isPubilcKeys = true;
   });
   if (isPubilcKeys && isSpecialKeys) {
     statusShortcut.value = 'default';

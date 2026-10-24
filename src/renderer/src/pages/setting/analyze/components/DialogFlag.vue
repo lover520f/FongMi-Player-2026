@@ -20,7 +20,8 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import join from 'lodash/join';
+import split from 'lodash/split';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -54,13 +55,13 @@ const onSubmit = async () => {
 
 const flagData = computed({
   get() {
-    return _.join(
+    return join(
       (formData.value || []).filter((p) => p !== ''),
       ',',
     );
   },
   set(val) {
-    formData.value = _.split(val, ',').filter((p) => p !== '');
+    formData.value = split(val, ',').filter((p) => p !== '');
   },
 });
 

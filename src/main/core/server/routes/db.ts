@@ -1,4 +1,6 @@
-import _ from 'lodash';
+import every from 'lodash/every';
+import has from 'lodash/has';
+import isArray from 'lodash/isArray';
 import { FastifyReply, FastifyPluginAsync, FastifyRequest } from 'fastify';
 
 import { history, setting, star, site, iptv, channel, analyze, drive, db } from '../../db/service';
@@ -33,7 +35,7 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
           throw new Error('Invalid type');
         };
 
-        if (_.isArray(data)) {
+        if (isArray(data)) {
           await Promise.all(data.map(clearData));
         }
 
@@ -74,7 +76,7 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
           }
         };
 
-        if (_.isArray(data)) {
+        if (isArray(data)) {
           await Promise.all(data.map(exportData));
         }
 
@@ -111,12 +113,12 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
           setting: setting.set,
         };
 
-        if (_.every(tables, (table) => _.has(data, table))) {
+        if (every(tables, (table) => has(data, table))) {
           db.init(data);
         } else {
           tables.forEach((table) => {
             const prefix = table.substring(4);
-            if (_.has(data, table) && tableSetters[prefix]) {
+            if (has(data, table) && tableSetters[prefix]) {
               tableSetters[prefix](data[table]);
             }
           });

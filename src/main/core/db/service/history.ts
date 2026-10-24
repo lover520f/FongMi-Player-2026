@@ -1,4 +1,6 @@
-import _ from 'lodash';
+import castArray from 'lodash/castArray';
+import size from 'lodash/size';
+import slice from 'lodash/slice';
 import db from '../index';
 
 const TABLE_NAME = 'tbl_history';
@@ -6,7 +8,7 @@ const TABLE_NAME = 'tbl_history';
 export default {
   all() {
     const db_res = db.get(TABLE_NAME).value();
-    return _.castArray(db_res);
+    return castArray(db_res);
   },
   update(id, doc) {
     return db.get(TABLE_NAME).find({ id }).assign(doc).write();
@@ -15,7 +17,7 @@ export default {
     return db.set(TABLE_NAME, []).write();
   },
   set(docs) {
-    docs = _.castArray(docs);
+    docs = castArray(docs);
     return db.set(TABLE_NAME, docs).write();
   },
   clear_part(type) {
@@ -48,8 +50,8 @@ export default {
       items = db.get(TABLE_NAME).filter({ type }).orderBy('date', 'desc').value();
     }
 
-    data = _.slice(items, jumpCount, jumpCount + pageSize);
-    total = _.size(items);
+    data = slice(items, jumpCount, jumpCount + pageSize);
+    total = size(items);
 
     return {
       data: data,

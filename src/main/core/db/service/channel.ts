@@ -1,4 +1,8 @@
-import _ from 'lodash';
+import castArray from 'lodash/castArray';
+import isEqual from 'lodash/isEqual';
+import size from 'lodash/size';
+import slice from 'lodash/slice';
+import unionWith from 'lodash/unionWith';
 import db from '../index';
 
 const TABLE_NAME = 'tbl_channel';
@@ -6,7 +10,7 @@ const TABLE_NAME = 'tbl_channel';
 export default {
   all() {
     const db_res = db.get(TABLE_NAME).value();
-    return _.castArray(db_res);
+    return castArray(db_res);
   },
   update(id, doc) {
     return db.get(TABLE_NAME).find({ id }).assign(doc).write();
@@ -15,7 +19,7 @@ export default {
     return db.set(TABLE_NAME, []).write();
   },
   set(docs) {
-    docs = _.castArray(docs);
+    docs = castArray(docs);
     return db.set(TABLE_NAME, docs).write();
   },
   find(doc) {
@@ -53,8 +57,8 @@ export default {
           return x.name.toLowerCase().includes(kw.toLowerCase());
         })
         .value();
-      list = _.slice(items, jumpCount, jumpCount + pageSize);
-      total = _.size(items);
+      list = slice(items, jumpCount, jumpCount + pageSize);
+      total = size(items);
     } else {
       const items = db
         .get(TABLE_NAME)
@@ -62,8 +66,8 @@ export default {
           return x.group === group && x.name.toLowerCase().includes(kw.toLowerCase());
         })
         .value();
-      list = _.slice(items, jumpCount, jumpCount + pageSize);
-      total = _.size(items);
+      list = slice(items, jumpCount, jumpCount + pageSize);
+      total = size(items);
     }
 
     return {
@@ -74,7 +78,7 @@ export default {
   async class() {
     const group_query = await db.get(TABLE_NAME).map('group').uniq().value();
     const group_query_format = group_query.map((group) => ({ type_id: group, type_name: group }));
-    const group_all = _.unionWith([{ type_id: '全部', type_name: '全部' }], group_query_format, _.isEqual);
+    const group_all = unionWith([{ type_id: '全部', type_name: '全部' }], group_query_format, isEqual);
     return group_all;
   },
 };

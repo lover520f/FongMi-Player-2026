@@ -1,5 +1,11 @@
 import { XMLParser } from 'fast-xml-parser';
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import isArray from 'lodash/isArray';
+import isEmpty from 'lodash/isEmpty';
+import size from 'lodash/size';
+import toString from 'lodash/toString';
+import zip from 'lodash/zip';
 import Base64 from 'crypto-js/enc-base64';
 import Utf8 from 'crypto-js/enc-utf8';
 import xpath from 'xpath';
@@ -116,7 +122,7 @@ const t3RuleInit = async (site) => {
     msg: 'site parameter not have ext or ext is empty',
   };
 
-  if (_.has(site, 'ext')) {
+  if (has(site, 'ext')) {
     try {
       await t3Work({ type: 'init', data: site.ext });
       data = {
@@ -335,10 +341,10 @@ const fetchClassify = async (site) => {
           const result: any = [];
           for (const key in classItem.type_extend) {
             const value = classItem.type_extend[key];
-            if (!_.isEmpty(value) && !['star', 'state', 'version', 'director'].includes(key)) {
+            if (!isEmpty(value) && !['star', 'state', 'version', 'director'].includes(key)) {
               const valueList = value.split(',').map((item) => item.trim());
               const options = valueList.map((value) => ({ n: value === '全部' ? '全部' : value, v: value }));
-              const name = (_.find(CLASS_FILTER_CONFIG, { key }) || {}).desc;
+              const name = (find(CLASS_FILTER_CONFIG, { key }) || {}).desc;
               result.push({ key, name, value: [{ n: '全部', v: '' }, ...options] });
             }
           }
@@ -409,21 +415,21 @@ const fetchClassify = async (site) => {
 const checkValid = async (site) => {
   try {
     const data = await fetchClassify(site);
-    let status = !_.isEmpty(data.classData);
+    let status = !isEmpty(data.classData);
     let resource: any = data.total;
 
     if (site.type === 8) {
       const homeList = data.homeList || [];
       // type8 total 常为占位 9999，用 home/class/列表真实数量
-      if (!_.isEmpty(homeList)) {
+      if (!isEmpty(homeList)) {
         status = true;
         resource = homeList.length;
-      } else if (!_.isEmpty(data.classData)) {
+      } else if (!isEmpty(data.classData)) {
         status = true;
         const tid = data.classData[0]?.type_id ?? 0;
         try {
           const list = await fetchList(site, 1, tid, {});
-          resource = _.isArray(list) ? list.length : 0;
+          resource = isArray(list) ? list.length : 0;
           if (resource === 0) resource = data.classData.length;
         } catch {
           resource = data.classData.length;
@@ -432,7 +438,7 @@ const checkValid = async (site) => {
         // 无分类也试列表（网盘等）
         try {
           const list = await fetchList(site, 1, 0, {});
-          resource = _.isArray(list) ? list.length : 0;
+          resource = isArray(list) ? list.length : 0;
           status = resource > 0;
         } catch {
           status = false;
@@ -484,7 +490,7 @@ const convertVideoList = (videoItems) => {
       vod_remark,
       vod_name,
       vod_blurb: removeHTMLTagsAndSpaces(vod_content),
-      vod_year: _.toString(vod_year),
+      vod_year: toString(vod_year),
       vod_area,
       vod_content,
       vod_director,
@@ -514,7 +520,7 @@ const fetchList = async (site, pg = 1, t, f = {}) => {
     } else if (site.type === 7) {
       const res: any = await t3Work({
         type: 'category',
-        data: { tid: t, pg, filter: _.size(f) ? true : false, extend: _.size(f) ? f : {} },
+        data: { tid: t, pg, filter: size(f) ? true : false, extend: size(f) ? f : {} },
       });
       return res.data.list;
     } else if (site.type === 8) {
@@ -699,7 +705,7 @@ const fetchSearch = async (site, wd, pg: number = 1) => {
       const searchstarrPat = reptileApiFormat(site.api, 'searchstarr');
       const searchstarrRes = reptileXpathFormat(json, searchstarrPat);
 
-      const zippedData = _.zip(searchnameRes, searchidRes, searchpicRes, searchstarrRes);
+      const zippedData = zip(searchnameRes, searchidRes, searchpicRes, searchstarrRes);
       const list = zippedData.map((item) => {
         return {
           vod_name: item[0],
@@ -717,7 +723,7 @@ const fetchSearch = async (site, wd, pg: number = 1) => {
     let videoList = jsondata.data || jsondata.list || [];
     if (site.type === 0) {
       videoList = jsondata.list.video;
-      if (!_.isArray(videoList)) videoList = [videoList];
+      if (!isArray(videoList)) videoList = [videoList];
       videoList = convertSearchList(videoList);
     } else if (site.type === 4) {
       videoList = jsondata.data.list;
@@ -755,7 +761,7 @@ const fetchSearchFirstDetail = async (site, wd) => {
     if (site.type === 0) {
       videoList = jsondata.list.video;
       if (!videoList) return null;
-      if (!_.isArray(videoList)) videoList = [videoList];
+      if (!isArray(videoList)) videoList = [videoList];
       videoList = convertSearchList(videoList);
     } else if (site.type === 4) {
       videoList = jsondata.data.list;
@@ -763,7 +769,7 @@ const fetchSearchFirstDetail = async (site, wd) => {
     if (videoList.length === 0) return null;
 
     let detailRes = await fetchDetail(site, videoList[0].vod_id);
-    if (_.isArray(detailRes)) detailRes = detailRes[0];
+    if (isArray(detailRes)) detailRes = detailRes[0];
     return detailRes;
   } catch (err) {
     throw err;
@@ -778,14 +784,14 @@ const fetchSearchFirstDetail = async (site, wd) => {
  */
 const convertDetailList = (detailItems) => {
   const vodPlayFrom = (dldd) => {
-    if (_.isArray(dldd)) {
+    if (isArray(dldd)) {
       return dldd.map((item) => item._flag).join('$$$');
     } else {
       return dldd._flag;
     }
   };
   const vodPlayUrl = (dldd) => {
-    if (_.isArray(dldd)) {
+    if (isArray(dldd)) {
       return dldd.map((item) => item._t).join('$$$');
     } else {
       return dldd._t;
@@ -876,7 +882,7 @@ const fetchDetail = async (site, id) => {
 
       const vod_from = detailxlRes.join('$$$');
       // @ts-ignore
-      const zippedData = _.zip(detaillistRes, detailjsurlRes);
+      const zippedData = zip(detaillistRes, detailjsurlRes);
       console.log(detaillistRes, detailjsurlRes);
       console.log(vod_from);
       const list = {
@@ -899,21 +905,21 @@ const fetchDetail = async (site, id) => {
     let videoList: any = [];
     if (site.type === 0) {
       videoList = jsondata.list?.video ?? jsondata.list ?? [];
-      if (!_.isArray(videoList)) videoList = [videoList];
+      if (!isArray(videoList)) videoList = [videoList];
       videoList = convertDetailList(videoList);
     } else if (site.type === 3) {
       videoList = jsondata.data ?? jsondata.list ?? [];
-      if (!_.isArray(videoList)) videoList = videoList ? [videoList] : [];
+      if (!isArray(videoList)) videoList = videoList ? [videoList] : [];
     } else if (site.type === 4) {
       videoList = jsondata.data?.list ?? jsondata.data ?? jsondata.list ?? [];
-      if (!_.isArray(videoList)) videoList = videoList ? [videoList] : [];
+      if (!isArray(videoList)) videoList = videoList ? [videoList] : [];
     } else if (site.type === 8) {
       const nested = jsondata.data?.list ?? jsondata.data?.data?.list;
-      if (_.isArray(nested)) {
+      if (isArray(nested)) {
         videoList = nested;
-      } else if (_.isArray(jsondata.list)) {
+      } else if (isArray(jsondata.list)) {
         videoList = jsondata.list;
-      } else if (_.isArray(jsondata.data)) {
+      } else if (isArray(jsondata.data)) {
         videoList = jsondata.data;
       } else if (jsondata.vod_id != null || jsondata.vod_name != null || jsondata.vod_play_from != null) {
         videoList = [jsondata];
@@ -925,10 +931,10 @@ const fetchDetail = async (site, id) => {
       }
     } else {
       videoList = jsondata.list ?? jsondata.data ?? [];
-      if (!_.isArray(videoList)) videoList = videoList ? [videoList] : [];
+      if (!isArray(videoList)) videoList = videoList ? [videoList] : [];
     }
 
-    return _.isArray(videoList) ? videoList.filter(Boolean) : [];
+    return isArray(videoList) ? videoList.filter(Boolean) : [];
   } catch (err) {
     throw err;
   }

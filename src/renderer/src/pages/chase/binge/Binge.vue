@@ -80,7 +80,11 @@
 <script setup lang="tsx">
 import 'v3-infinite-loading/lib/style.css';
 
-import _ from 'lodash';
+import findIndex from 'lodash/findIndex';
+import has from 'lodash/has';
+import _isEmpty from 'lodash/isEmpty';
+import reject from 'lodash/reject';
+import size from 'lodash/size';
 import PQueue from 'p-queue';
 import { AssignmentCheckedIcon, DeleteIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
@@ -135,7 +139,7 @@ const onScrollEvent = (): void => {
 
 const infiniteId = ref(+new Date());
 
-const isEmpty = computed(() => !_.size(bingeConfig.value.data));
+const isEmpty = computed(() => !size(bingeConfig.value.data));
 const emptyTip = computed(() =>
   isEmpty.value ? t('pages.chase.infiniteLoading.noData') : t('pages.chase.infiniteLoading.complete'),
 );
@@ -143,7 +147,7 @@ const emptyTip = computed(() =>
 onMounted(async () => {
   mainRef.value?.addEventListener('scroll', onScrollEvent, { passive: true });
   const site_res = await fetchSiteList();
-  if (_.has(site_res, 'data') && !_.isEmpty(site_res['data'])) {
+  if (has(site_res, 'data') && !_isEmpty(site_res['data'])) {
     siteConfig.value.data = site_res['data'];
   }
 });
@@ -194,7 +198,7 @@ const getBingeList = async () => {
   pagination.value.count = star_res.total;
   pagination.value.pageIndex++;
 
-  const length = _.size(star_res.data);
+  const length = size(star_res.data);
   console.log(`[binge] load data length: ${length}`);
   return length;
 };
@@ -266,7 +270,7 @@ const removeEvent = (item) => {
     confirmDia.hide();
     try {
       await delStar(id);
-      bingeConfig.value.data = _.reject(bingeConfig.value.data, { id }) as any;
+      bingeConfig.value.data = reject(bingeConfig.value.data, { id }) as any;
       pagination.value.count--;
     } catch (err) {
       console.error('[chase][binge][removeEvent][error]', err);
@@ -289,7 +293,7 @@ const removeEvent = (item) => {
 
 // 更新
 const updateVideoRemarks = (item, res) => {
-  const index = _.findIndex(bingeConfig.value.data, { id: item.id });
+  const index = findIndex(bingeConfig.value.data, { id: item.id });
   if (index < 0) return;
   const isUpdate = res.vod_remarks !== bingeConfig.value.data[index].videoRemarks;
   bingeConfig.value.data[index].videoUpdate = isUpdate;
@@ -297,7 +301,7 @@ const updateVideoRemarks = (item, res) => {
 };
 
 const checkUpdaterEvent = async () => {
-  if (!_.size(bingeConfig.value.data)) {
+  if (!size(bingeConfig.value.data)) {
     MessagePlugin.info(t('pages.chase.binge.message.noCheckData'));
     return;
   }

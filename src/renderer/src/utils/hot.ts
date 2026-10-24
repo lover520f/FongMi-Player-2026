@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import isEmpty from 'lodash/isEmpty';
 import qs from 'qs';
 
 import request from '@/utils/request';
@@ -177,7 +177,7 @@ const enlightentHot = async (date, sort, channelType, day) => {
       method: 'POST',
       data: body,
     });
-    if (response && !_.isEmpty(response.content)) {
+    if (response && !isEmpty(response.content)) {
       return response.content.map((item) => ({
         vod_id: item.nameId,
         vod_name: item.name,

@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import findIndex from 'lodash/findIndex';
 import { reactive, ref, watch } from 'vue';
 
 import DNS_CONFIG from '@/config/doh';
@@ -73,13 +73,13 @@ watch(
   (val) => {
     formData.value = val;
 
-    const index = _.findIndex(DNS_LIST, ['dns', val.data]);
+    const index = findIndex(DNS_LIST, ['dns', val.data]);
     if (index > -1) dnsSelect.value = val.data;
   },
 );
 
 const changeDnstextarea = (item) => {
-  const index = _.findIndex(DNS_LIST, ['dns', item]);
+  const index = findIndex(DNS_LIST, ['dns', item]);
   if (index === -1) dnsSelect.value = '';
 };
 

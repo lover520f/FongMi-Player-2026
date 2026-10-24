@@ -60,7 +60,9 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import isEmpty from 'lodash/isEmpty';
 import moment from 'moment';
 import { Share1Icon, CloseIcon, HistoryIcon, AppIcon } from 'tdesign-icons-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
@@ -135,11 +137,11 @@ onActivated(() => {
 const getSetting = async () => {
   try {
     const data = await fetchAnalyzeActive();
-    if (_.has(data, 'default') && !_.isEmpty(data["default"])) {
+    if (has(data, 'default') && !isEmpty(data["default"])) {
       analyzeConfig.value.default = data["default"];
       active.value.nav = data["default"]["id"];
     }
-    if (_.has(data, 'data') && !_.isEmpty(data["data"])) {
+    if (has(data, 'data') && !isEmpty(data["data"])) {
       analyzeConfig.value.data = data["data"];
     }
   } catch (err) {
@@ -161,7 +163,7 @@ const getVideoInfo = async (url: string, title: string) => {
 
   if (player.value) await clearWebview();
 
-  const api: any = _.find(analyzeConfig.value.data, { id: active.value.nav });
+  const api: any = find(analyzeConfig.value.data, { id: active.value.nav });
   if (!api) {
     MessagePlugin.error(t('pages.analyze.message.invalidApi'));
     return;
@@ -258,7 +260,7 @@ const refreshAnalyzeConfig = () => {
 const shareEvent = () => {
   isVisible.share = true;
 
-  const provider: any = _.find(analyzeConfig.value.data, { id: active.value.nav });
+  const provider: any = find(analyzeConfig.value.data, { id: active.value.nav });
 
   shareData.value = {
     name: urlTitle.value,

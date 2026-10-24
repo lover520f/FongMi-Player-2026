@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import findIndex from 'lodash/findIndex';
 import { reactive, ref, watch } from 'vue';
 
 import UA_CONFIG from '@/config/ua';
@@ -74,13 +74,13 @@ watch(
   (val) => {
     formData.value = val;
 
-    const index = _.findIndex(UA_LIST, ['ua', val.data]);
+    const index = findIndex(UA_LIST, ['ua', val.data]);
     if (index > -1) active.select = val.data;
   },
 );
 
 const changeUatextarea = (item) => {
-  const index = _.findIndex(UA_LIST, ['ua', item]);
+  const index = findIndex(UA_LIST, ['ua', item]);
   if (index === -1) active.select = '';
 };
 

@@ -42,7 +42,6 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
 import { ref, watch } from 'vue';
 
 const props = defineProps({

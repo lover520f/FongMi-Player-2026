@@ -446,7 +446,12 @@
 import 'v3-infinite-loading/lib/style.css';
 import '@/style/player/index.less';
 
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import isEmpty from 'lodash/isEmpty';
+import isEqual from 'lodash/isEqual';
+import throttle from 'lodash/throttle';
+import unionWith from 'lodash/unionWith';
 import moment from 'moment';
 import {
   ChevronDownIcon,
@@ -522,7 +527,7 @@ const set = computed(() => {
 });
 const snifferAnalyze = computed(() => {
   const analyzeSource = active.analyzeId
-    ? _.find(dataAnalyze.value.active, { id: active.analyzeId })
+    ? find(dataAnalyze.value.active, { id: active.analyzeId })
     : dataAnalyze.value.default;
 
   const data = {
@@ -1319,7 +1324,7 @@ const putHistory = async (): Promise<void> => {
 };
 
 // 进度保存节流,避免每个timeupdate都发一次请求
-const putHistoryThrottled = _.throttle(() => {
+const putHistoryThrottled = throttle(() => {
   putHistory();
 }, 250);
 
@@ -1345,7 +1350,7 @@ const initFilmPlayer = async (isFirst) => {
 
   if (!isFirst) {
     await fetchHistory();
-    if (!_.has(dataHistory.value, "id")) await putHistory();
+    if (!has(dataHistory.value, "id")) await putHistory();
     await fetchAnalyze();
 
     fetchRecommend();
@@ -1723,7 +1728,7 @@ const recommendEvent = async (item) => {
 
   const response = await fetchRecommendSearchHelper(site, item.vod_name);
 
-  if (!_.isEmpty(response)) {
+  if (!isEmpty(response)) {
     info.value = response;
     recommend.value = [];
     dataHistory.value = {};
@@ -1853,7 +1858,7 @@ const getChannelList = async () => {
 
   if (skipIpv6) res.data = await checkChannelListIpv6(res.data);
   const restultLength = res.data.length;
-  iptvConfig.value.channelData = _.unionWith(channelData, res.data, _.isEqual);
+  iptvConfig.value.channelData = unionWith(channelData, res.data, isEqual);
   const length = sourceLength;
 
   if (skipIpv6 && sourceLength && sourceLength !== restultLength) {

@@ -30,7 +30,10 @@
 <script setup lang="ts">
 import 'v3-infinite-loading/lib/style.css';
 
-import _ from 'lodash';
+import findIndex from 'lodash/findIndex';
+import isEqual from 'lodash/isEqual';
+import size from 'lodash/size';
+import unionWith from 'lodash/unionWith';
 import moment from 'moment';
 import { DeleteIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin } from 'tdesign-vue-next';
@@ -85,7 +88,7 @@ const historyPlayEvent = async (item) => {
 
 // 历史删除
 const histroyDeleteEvent = async (id) => {
-  const index = _.findIndex(historyList.value, { id });
+  const index = findIndex(historyList.value, { id });
   if (index !== -1) {
     historyList.value.splice(index, 1);
     delHistory(id);
@@ -118,12 +121,12 @@ const getHistoryList = async () => {
   const { pageIndex, pageSize } = pagination.value;
   const res = await fetchHistoryList(pageIndex, pageSize, 'analyze');
   const { data, total } = res;
-  historyList.value = _.unionWith(historyList.value, data, _.isEqual) as any;
+  historyList.value = unionWith(historyList.value, data, isEqual) as any;
 
   pagination.value.count = total;
   pagination.value.pageIndex++;
 
-  return _.size(res.list);
+  return size(res.list);
 };
 
 const load = async ($state) => {

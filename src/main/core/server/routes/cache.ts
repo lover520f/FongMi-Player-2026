@@ -1,4 +1,3 @@
-import _ from 'lodash';
 import { FastifyReply, FastifyPluginAsync, FastifyRequest } from 'fastify';
 
 const API_VERSION = 'api/v1';

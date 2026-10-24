@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import uniqBy from 'lodash/uniqBy';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -34,7 +34,7 @@ watch(
 const emit = defineEmits(['changeKey']);
 
 const tagFlag = ref(props.active);
-const uniqueList = computed(() => _.uniqBy(props.list, 'type_id'));
+const uniqueList = computed(() => uniqBy(props.list, 'type_id'));
 
 const handleItemClick = (key: string | number) => {
   emit('changeKey', key);

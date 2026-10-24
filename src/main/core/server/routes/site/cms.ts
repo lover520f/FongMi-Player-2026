@@ -1,6 +1,11 @@
 import fetch from 'node-fetch';
 import { XMLParser } from 'fast-xml-parser';
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import isArray from 'lodash/isArray';
+import isEmpty from 'lodash/isEmpty';
+import toString from 'lodash/toString';
+import zip from 'lodash/zip';
 import Base64 from 'crypto-js/enc-base64';
 import Utf8 from 'crypto-js/enc-utf8.js';
 import xpath from 'xpath';
@@ -249,12 +254,12 @@ const classify = async (id) => {
           const result = [];
           for (const key in classItem.type_extend) {
             const value = classItem.type_extend[key];
-            if (!_.isEmpty(value) && !['star', 'state', 'version', 'director'].includes(key)) {
+            if (!isEmpty(value) && !['star', 'state', 'version', 'director'].includes(key)) {
               const valueList = value.split(',').map((item) => item.trim());
               const options = valueList.map((value) => ({ n: value === '全部' ? '全部' : value, v: value }));
               result.push({
                 key,
-                name: (_.find(CLASS_FILTER_CONFIG, { key }) || {}).desc,
+                name: (find(CLASS_FILTER_CONFIG, { key }) || {}).desc,
                 value: [{ n: '全部', v: '' }, ...options],
               });
             }
@@ -336,7 +341,7 @@ const convertVideoList = (videoItems) => {
       vod_remark,
       vod_name,
       vod_blurb: removeHTMLTagsAndSpaces(vod_content),
-      vod_year: _.toString(vod_year),
+      vod_year: toString(vod_year),
       vod_area,
       vod_content,
       vod_director,
@@ -475,7 +480,7 @@ const search = async (id, wd) => {
       const searchstarrPat = reptileApiFormat(site.api, 'searchstarr');
       const searchstarrRes = reptileXpathFormat(json, searchstarrPat);
 
-      const zippedData = _.zip(searchnameRes, searchidRes, searchpicRes, searchstarrRes);
+      const zippedData = zip(searchnameRes, searchidRes, searchpicRes, searchstarrRes);
       const list = zippedData.map((item) => {
         return {
           vod_name: item[0],
@@ -493,7 +498,7 @@ const search = async (id, wd) => {
     let videoList = jsondata.data || jsondata.list || [];
     if (site.type === 0) {
       videoList = jsondata.list.video;
-      if (!_.isArray(videoList)) videoList = [videoList];
+      if (!isArray(videoList)) videoList = [videoList];
       videoList = convertSearchList(videoList);
     } else if (site.type === 4) {
       videoList = jsondata.data.list;
@@ -514,14 +519,14 @@ const search = async (id, wd) => {
  */
 const convertDetailList = (detailItems) => {
   const vodPlayFrom = (dldd) => {
-    if (_.isArray(dldd)) {
+    if (isArray(dldd)) {
       return dldd.map((item) => item._flag).join('$$$');
     } else {
       return dldd._flag;
     }
   };
   const vodPlayUrl = (dldd) => {
-    if (_.isArray(dldd)) {
+    if (isArray(dldd)) {
       return dldd.map((item) => item._t).join('$$$');
     } else {
       return dldd._t;
@@ -605,7 +610,7 @@ const detail = async (key, id) => {
       const detailjsurlRes = reptileXpathFormat(json, detailjsurlPat);
 
       const vod_from = detailxlRes.join('$$$');
-      const zippedData = _.zip(detaillistRes, detailjsurlRes);
+      const zippedData = zip(detaillistRes, detailjsurlRes);
       console.log(detaillistRes, detailjsurlRes);
       console.log(vod_from);
       const list = {
@@ -620,11 +625,11 @@ const detail = async (key, id) => {
     // 坑: 单条结果是dict 多条结果list
     if (site.type === 0) {
       videoList = jsondata.list.video;
-      if (!_.isArray(videoList)) videoList = [videoList];
+      if (!isArray(videoList)) videoList = [videoList];
       videoList = convertDetailList(videoList);
     } else if (site.type === 3) {
       videoList = jsondata.data;
-      if (!_.isArray(videoList)) videoList = [videoList];
+      if (!isArray(videoList)) videoList = [videoList];
     } else if (site.type === 4) {
       videoList = jsondata.data.list;
     }
@@ -675,7 +680,7 @@ const get_hipy_play_url = async (id, flag, play) => {
     const response = await gwFetch(url);
     const data = await response.json();
     let playUrl = data;
-    if (_.has(data, 'url')) playUrl = data['url'];
+    if (has(data, 'url')) playUrl = data['url'];
     return playUrl;
   } catch (err) {
     throw err;
@@ -719,7 +724,7 @@ const check = async (key) => {
   try {
     const data = await classify(key);
     return {
-      status: !_.isEmpty(data.classData),
+      status: !isEmpty(data.classData),
       resource: data.total,
     };
   } catch (err) {

@@ -1,4 +1,3 @@
-import _ from 'lodash';
 import db from '../index';
 
 export default {

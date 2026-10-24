@@ -85,7 +85,10 @@
 <script setup lang="tsx">
 import 'v3-infinite-loading/lib/style.css';
 
-import _ from 'lodash';
+import has from 'lodash/has';
+import _isEmpty from 'lodash/isEmpty';
+import reject from 'lodash/reject';
+import size from 'lodash/size';
 import moment from 'moment';
 import { DeleteIcon, LaptopIcon } from 'tdesign-icons-vue-next';
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
@@ -191,7 +194,7 @@ const onScrollEvent = (): void => {
 onMounted(async () => {
   contentRef.value?.addEventListener('scroll', onScrollEvent, { passive: true });
   const site_res = await fetchSiteList();
-  if (_.has(site_res, 'data') && !_.isEmpty(site_res['data'])) {
+  if (has(site_res, 'data') && !_isEmpty(site_res['data'])) {
     siteConfig.value.data = site_res['data'];
   }
 });
@@ -237,7 +240,7 @@ const getHistoryList = async () => {
   pagination.value.count = history_res.total;
   pagination.value.pageIndex++;
 
-  const length = _.size(history_res.data);
+  const length = size(history_res.data);
   console.log(`[history] load data length: ${length}`);
   return length;
 };
@@ -310,7 +313,7 @@ const removeEvent = (item) => {
     confirmDia.hide();
     try {
       await delHistory(id);
-      list.value = _.reject(list.value, { id });
+      list.value = reject(list.value, { id });
       pagination.value.count--;
     } catch (err) {
       console.error('[history][removeEvent][error]', err);

@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyPluginAsync, FastifyRequest } from 'fastify';
-import _ from 'lodash';
+import findIndex from 'lodash/findIndex';
 import { nanoid } from 'nanoid';
 
 import { setting } from '../../db/service';
@@ -52,7 +52,7 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
         const source = (await setting.source()) as SettingItem[];
 
         for (let i in destination) {
-          const index = _.findIndex(source, { key: i });
+          const index = findIndex(source, { key: i });
           if (index !== -1) {
             source[index]['value'] = destination[i];
           } else {

@@ -1,4 +1,6 @@
-import _ from 'lodash';
+import castArray from 'lodash/castArray';
+import map from 'lodash/map';
+import reduce from 'lodash/reduce';
 import db from '../index';
 
 const TABLE_NAME = 'tbl_setting';
@@ -6,12 +8,12 @@ const TABLE_NAME = 'tbl_setting';
 export default {
   all() {
     const db_res = db.get(TABLE_NAME).value();
-    return _.castArray(db_res);
+    return castArray(db_res);
   },
   format_all() {
-    const db_res = _.castArray(db.get(TABLE_NAME).value());
-    const res = _.reduce(
-      _.map(db_res, (obj) => [obj.key, obj.value]),
+    const db_res = castArray(db.get(TABLE_NAME).value());
+    const res = reduce(
+      map(db_res, (obj) => [obj.key, obj.value]),
       (acc, [key, value]) => {
         acc[key] = value;
         return acc;
@@ -21,7 +23,7 @@ export default {
     return res;
   },
   source() {
-    return _.castArray(db.get(TABLE_NAME).value());
+    return castArray(db.get(TABLE_NAME).value());
   },
   update(id, doc) {
     return db.get(TABLE_NAME).find({ id }).assign(doc).write();
@@ -33,7 +35,7 @@ export default {
     return db.set(TABLE_NAME, []).write();
   },
   set(docs) {
-    docs = _.castArray(docs);
+    docs = castArray(docs);
     return db.set(TABLE_NAME, docs).write();
   },
   find(doc) {

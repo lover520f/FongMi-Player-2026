@@ -152,7 +152,9 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import remove from 'lodash/remove';
 import PQueue from 'p-queue';
 import {
   AddIcon,
@@ -307,14 +309,14 @@ watch(
 const getData = async () => {
   try {
     const res = await fetchSitePage(searchValue.value);
-    if (_.has(res, 'default') && res['default']) {
+    if (has(res, 'default') && res['default']) {
       siteTableConfig.value.default = res.default;
     }
-    if (_.has(res, 'data') && res['data']) {
+    if (has(res, 'data') && res['data']) {
       siteTableConfig.value.data = res.data;
       siteTableConfig.value.rawData = res.data;
     }
-    if (_.has(res, 'total') && res['total']) {
+    if (has(res, 'total') && res['total']) {
       pagination.total = res.total;
     }
   } catch (e) {
@@ -326,7 +328,7 @@ const getData = async () => {
 const getGroup = async () => {
   try {
     const res = await fetchSiteGroup();
-    if (_.has(res, 'data') && res['data']) {
+    if (has(res, 'data') && res['data']) {
       siteTableConfig.value.group = res.data;
     }
   } catch (e) {
@@ -385,7 +387,7 @@ const checkAllSite = async (select) => {
     const { data } = siteTableConfig.value;
 
     select.forEach((item) => {
-      const res = _.find(data, { id: item });
+      const res = find(data, { id: item });
       checkData.push(res);
     });
 
@@ -484,8 +486,8 @@ const switchStatus = async (row) => {
 
 const tableUpdateIsActive = (select, isActiveValue: boolean) => {
   select.forEach((itemId) => {
-    const item: any = _.find(siteTableConfig.value.data, { id: itemId });
-    const rawTtem: any = _.find(siteTableConfig.value.rawData, { id: itemId });
+    const item: any = find(siteTableConfig.value.data, { id: itemId });
+    const rawTtem: any = find(siteTableConfig.value.rawData, { id: itemId });
     if (item) item.isActive = isActiveValue;
     if (item) rawTtem.isActive = isActiveValue;
   });
@@ -493,8 +495,8 @@ const tableUpdateIsActive = (select, isActiveValue: boolean) => {
 
 const tableDelete = (select) => {
   select.forEach((itemId) => {
-    _.remove(siteTableConfig.value.data, (item: any) => item.id === itemId);
-    _.remove(siteTableConfig.value.rawData, (item: any) => item.id === itemId);
+    remove(siteTableConfig.value.data, (item: any) => item.id === itemId);
+    remove(siteTableConfig.value.rawData, (item: any) => item.id === itemId);
   });
 };
 

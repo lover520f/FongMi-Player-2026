@@ -1,5 +1,4 @@
 import { FastifyReply, FastifyPluginAsync, FastifyRequest } from 'fastify';
-import _ from 'lodash';
 import { nanoid } from 'nanoid';
 
 import { fixAdM3u8Ai } from './ad';

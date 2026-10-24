@@ -1,4 +1,3 @@
-import _ from 'lodash';
 import axios from 'axios';
 import PQueue from 'p-queue';
 import { FastifyReply, FastifyPluginAsync, FastifyRequest } from 'fastify';

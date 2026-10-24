@@ -66,7 +66,9 @@
 <script setup lang="tsx">
 import 'v3-infinite-loading/lib/style.css';
 
-import _ from 'lodash';
+import find from 'lodash/find';
+import has from 'lodash/has';
+import isEmpty from 'lodash/isEmpty';
 import { Tv1Icon, LoadingIcon } from 'tdesign-icons-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { computed, onActivated, onMounted, reactive, ref } from 'vue';
@@ -166,18 +168,18 @@ onActivated(() => {
 const getSetting = async () => {
   try {
     const data = await fetchDriveActive();
-    if (_.has(data, 'default') && !_.isEmpty(data["default"])) {
+    if (has(data, 'default') && !isEmpty(data["default"])) {
       driveConfig.value.default = data["default"];
       active.value.nav = data["default"]["id"];
       driveConfig.value.default.startPage = driveConfig.value.default.startPage ? driveConfig.value.default.startPage : '/';
     } else {
       infiniteCompleteTip.value = t('pages.drive.infiniteLoading.noData');
     }
-    if (_.has(data, 'data') && !_.isEmpty(data["data"])) {
+    if (has(data, 'data') && !isEmpty(data["data"])) {
       driveConfig.value.data = data["data"];
     }
     // 没有默认网盘源时整页给空态 + 直达设置，而不是留一句「暂无数据」
-    if (_.isEmpty(active.value.nav)) {
+    if (isEmpty(active.value.nav)) {
       pageState.value = 'noSource';
       return;
     }
@@ -325,7 +327,7 @@ const changeDefaultIptvEvent = async (id) => {
   console.log(`[drive] change source: ${id}`);
 
   if (isVisible.loading) return;
-  let item: any = _.find(driveConfig.value.data, { id });
+  let item: any = find(driveConfig.value.data, { id });
   if (!item) return;
   item.startPage = item?.startPage ? item!.startPage : '/';
 

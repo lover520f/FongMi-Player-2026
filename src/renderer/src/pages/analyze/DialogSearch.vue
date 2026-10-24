@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import find from 'lodash/find';
 import { CloseIcon, InfoCircleIcon, SearchIcon } from 'tdesign-icons-vue-next';
 import { nextTick, reactive, ref, watch } from 'vue';
 
@@ -109,7 +109,7 @@ watch(
     if (val.includes('@')) {
       const patchFlag = val.split('@')[0];
       const patchValue = val.split('@')[1];
-      const item = _.find(VIDEOSITES, { name: patchFlag }) || _.find(VIDEOSITES, { id: patchFlag });
+      const item = find(VIDEOSITES, { name: patchFlag }) || find(VIDEOSITES, { id: patchFlag });
       if (item) {
         isVisible.filter = true;
         searchTag.value = `${patchFlag}@`;
@@ -150,7 +150,7 @@ const searchEvent = () => {
   let searchDomain: string | undefined = 'https://so.360kan.com/?kw=';
   if (searchTag.value) {
     const searchTagSplite = searchTag.value.split('@')[0];
-    const item = _.find(VIDEOSITES, { name: searchTagSplite }) || _.find(VIDEOSITES, { id: searchTagSplite });
+    const item = find(VIDEOSITES, { name: searchTagSplite }) || find(VIDEOSITES, { id: searchTagSplite });
     searchDomain = item?.search;
   }
   const searchUrl = `${searchDomain}${searchText.value}`;

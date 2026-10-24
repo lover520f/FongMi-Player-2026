@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import some from 'lodash/some';
 import Base64 from 'crypto-js/enc-base64';
 import Utf8 from 'crypto-js/enc-utf8';
 import PQueue from 'p-queue';
@@ -615,7 +615,7 @@ const fetchBarrageData = async (realUrl: string, options, active): Promise<any> 
     const { url, key, support, start, mode, color, content } = options;
 
     if (!(url && key && support && start && mode && color && content)) return;
-    if (!_.some(support, (source) => source === active.flimSource)) return;
+    if (!some(support, (source) => source === active.flimSource)) return;
 
     const sourceUrl = formatIndex(active.filmIndex).url;
     if (sourceUrl.startsWith('http')) {

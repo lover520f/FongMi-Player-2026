@@ -1,4 +1,6 @@
-import _ from 'lodash';
+import isArray from 'lodash/isArray';
+import map from 'lodash/map';
+import sortBy from 'lodash/sortBy';
 
 import fetch from 'node-fetch';
 
@@ -21,7 +23,7 @@ const get_drives = async (name) => {
       //获取 设置
       settings.v3 = false;
       const data = (await fetch(server + '/api/public/settings')).json().data;
-      if (_.isArray(data)) {
+      if (isArray(data)) {
         settings.title = data.find((x) => x.key == 'title')?.value;
         settings.v3 = false;
         settings.version = data.find((x) => x.key == 'version')?.value;
@@ -53,7 +55,7 @@ const init = ({ skey, stype, ext }) => {
     showAll: item.showAll === true, //默认只显示 视频和文件夹，如果想显示全部 showAll 设置true
     params: item.params || {},
     _path_param: item.params
-      ? _.sortBy(Object.keys(item.params), function (x) {
+      ? sortBy(Object.keys(item.params), function (x) {
           return -x.length;
         })
       : [],
@@ -170,7 +172,7 @@ const dir = async (dir, pg = 1) => {
   pg = pg || 1;
   if (pg === 0) pg = 1;
   if (dir === '/' || dir === '') {
-    const result = _.map(__drives, function (d) {
+    const result = map(__drives, function (d) {
       return { name: d.name, path: '/' + d.name + d.startPage, type: 0, thumb: '' };
     });
     return JSON.stringify({

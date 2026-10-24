@@ -20,7 +20,8 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import join from 'lodash/join';
+import split from 'lodash/split';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -47,13 +48,13 @@ const classHeader = computed(() => {
 });
 const classData = computed({
   get() {
-    return _.join(
+    return join(
       (formData.value.data || []).filter((p) => p !== ''),
       ',',
     );
   },
   set(val) {
-    formData.value.data = _.split(val, ',').filter((p) => p !== '');
+    formData.value.data = split(val, ',').filter((p) => p !== '');
   },
 });
 

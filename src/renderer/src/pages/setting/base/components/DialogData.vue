@@ -154,7 +154,25 @@
 
 <script setup lang="ts">
 import Base64 from 'crypto-js/enc-base64';
-import _ from 'lodash';
+import difference from 'lodash/difference';
+import filter from 'lodash/filter';
+import find from 'lodash/find';
+import findIndex from 'lodash/findIndex';
+import get from 'lodash/get';
+import has from 'lodash/has';
+import identity from 'lodash/identity';
+import includes from 'lodash/includes';
+import isArray from 'lodash/isArray';
+import isEmpty from 'lodash/isEmpty';
+import isPlainObject from 'lodash/isPlainObject';
+import isString from 'lodash/isString';
+import join from 'lodash/join';
+import keys from 'lodash/keys';
+import pickBy from 'lodash/pickBy';
+import some from 'lodash/some';
+import startsWith from 'lodash/startsWith';
+import upperFirst from 'lodash/upperFirst';
+import values from 'lodash/values';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { nanoid } from 'nanoid';
 import { ref, watch, reactive } from 'vue';
@@ -313,7 +331,7 @@ const easyConfig = async () => {
   if (!url) return;
 
   let config = await getConfig(url);
-  if (!_.isPlainObject(config)) return;
+  if (!isPlainObject(config)) return;
 
   let data = {};
 
@@ -357,10 +375,10 @@ const easyConfig = async () => {
 
     if (type === 0) {
       ['sites', 'iptv', 'analyze', 'drive'].forEach(key => {
-        if (_.has(config, key)) {
+        if (has(config, key)) {
           const tblKey = key === 'sites' ? 'site' : key;
           data[`tbl_${tblKey}`] = config[key].data;
-          defaultObject[`default${_.upperFirst(tblKey)}`] = `${config[key].default}`;
+          defaultObject[`default${upperFirst(tblKey)}`] = `${config[key].default}`;
         }
       });
 
@@ -370,7 +388,7 @@ const easyConfig = async () => {
         }
       }
     } else {
-      if (_.has(config, "sites")) {
+      if (has(config, "sites")) {
         data["tbl_site"] = config.sites
           .filter((item) => [0, 1, 4].includes(item.type) || (item.type === 3 && item.api.includes('.js') && item.ext && typeof item.ext === 'string' && item.ext.includes('.js')))
           .map((item) => ({
@@ -380,15 +398,15 @@ const easyConfig = async () => {
             type: formatType(type, item.type),
             api: formatUrl(item.api, url),
             group: formatGroup(type),
-            search: _.has(item, "searchable") ? item.searchable : 0,
-            categories: _.has(item, "categories") ? (_.isArray(item.categories) ? _.join(item.categories, ',') : item.categories) : null, // 转字符串
-            ext: _.has(item, "ext") ? formatUrl(item.ext, url) : '',
+            search: has(item, "searchable") ? item.searchable : 0,
+            categories: has(item, "categories") ? (isArray(item.categories) ? join(item.categories, ',') : item.categories) : null, // 转字符串
+            ext: has(item, "ext") ? formatUrl(item.ext, url) : '',
             isActive: true,
             status: true,
           }));
       };
-      if (_.has(config, 'lives')) {
-        let oldLives = _.find(config.lives, { group: 'redirect' });
+      if (has(config, 'lives')) {
+        let oldLives = find(config.lives, { group: 'redirect' });
         if (oldLives && !Array.isArray(oldLives)) {
           oldLives = [oldLives]
         }
@@ -430,8 +448,8 @@ const easyConfig = async () => {
         }
         data['tbl_iptv'] = iptv;
       };
-      if (_.has(config, 'parses')) {
-        const analyze = _.filter(config.parses, item => _.startsWith(item.url, 'http'))
+      if (has(config, 'parses')) {
+        const analyze = filter(config.parses, item => startsWith(item.url, 'http'))
           .map(item => ({
             id: nanoid(),
             name: item.name,
@@ -441,8 +459,8 @@ const easyConfig = async () => {
           }));
         data['tbl_analyze'] = analyze;
       };
-      if (_.has(config, 'drives')) {
-        const drives = _.filter(config.drives, item => item.type === 'alist' || !item.type)
+      if (has(config, 'drives')) {
+        const drives = filter(config.drives, item => item.type === 'alist' || !item.type)
           .map(item => ({
             id: nanoid(),
             name: item.name,
@@ -490,7 +508,7 @@ const formatSet = (data) => {
   const newEntries = [
     {
       key: "windowPosition", value: {
-        status: _.get(data, ["restoreWindowPositionAndSize", "value"], false),
+        status: get(data, ["restoreWindowPositionAndSize", "value"], false),
         position_main: { width: 1000, height: 640 },
         position_play: { width: 875, height: 550 }
       }
@@ -498,17 +516,17 @@ const formatSet = (data) => {
     {
       key: "webdev", value: {
         sync: false, data: {
-          url: _.get(data, ["webdevUrl", "value"], "https://dav.jianguoyun.com/dav/"),
-          username: _.get(data, ["webdevUsername", "value"], ""),
-          password: _.get(data, ["webdevPassword", "value"], "")
+          url: get(data, ["webdevUrl", "value"], "https://dav.jianguoyun.com/dav/"),
+          username: get(data, ["webdevUsername", "value"], ""),
+          password: get(data, ["webdevPassword", "value"], "")
         }
       }
     },
     { key: "lang", value: "zh_CN" },
     { key: "defaultViewCasual", value: "" },
     { key: "barrage", value: { url: "", key: "danmuku", support: ["qq", "qiyi", "youku", "mgtv"], start: "0", mode: "1", color: "2", content: "4" } },
-    { key: "playerMode", value: { type: _.get(data, ["broadcasterType", "value"], 'xgplayer'), external: _.get(data, ["externalPlayer", "value"], '') } },
-    { key: "snifferMode", value: { type: _.get(data, ["snifferType", "value"], "pie"), url: "" } },
+    { key: "playerMode", value: { type: get(data, ["broadcasterType", "value"], 'xgplayer'), external: get(data, ["externalPlayer", "value"], '') } },
+    { key: "snifferMode", value: { type: get(data, ["snifferType", "value"], "pie"), url: "" } },
     { key: "timeout", value: 5000 },
     {
       key: "ai", value: {
@@ -525,7 +543,7 @@ const formatSet = (data) => {
   ];
 
   newEntries.forEach(({ key, value }) => {
-    const index = _.findIndex(data, { key });
+    const index = findIndex(data, { key });
     if (index > -1) {
       const entry = data[index];
       if (key === 'windowPosition' && typeof entry.value !== 'object') {
@@ -546,7 +564,7 @@ const formatSet = (data) => {
     'pauseWhenMinimize', 'skipStartEnd'
   ];
   keysToRemove.forEach((key) => {
-    const index = _.findIndex(data, { key });
+    const index = findIndex(data, { key });
     if (index > -1) {
       data.splice(index, 1);
     }
@@ -560,7 +578,7 @@ const commonDelImportData = (data) => {
   try {
     // 先处理旧数据
     ['sites', 'iptv', 'analyze', 'drive', 'setting', 'channel'].forEach(key => {
-      if (_.has(data, key)) {
+      if (has(data, key)) {
         const tblKey = key === 'sites' ? 'site' : key;
         if (key === 'setting') {
           const tblSetting = data.setting[0]
@@ -575,19 +593,19 @@ const commonDelImportData = (data) => {
     });
 
     // 处理设置, 兼容一键配置
-    if (_.has(data, "tbl_setting") && !_.isEmpty(data["tbl_setting"])) data['tbl_setting'] = formatSet(data['tbl_setting']);
+    if (has(data, "tbl_setting") && !isEmpty(data["tbl_setting"])) data['tbl_setting'] = formatSet(data['tbl_setting']);
 
     // 规范化 id 字段
     const newDataTypes = ['tbl_site', 'tbl_iptv', 'tbl_channel', 'tbl_analyze', 'tbl_drive', 'tbl_history', 'tbl_star', 'tbl_setting'];
     for (const dataType of newDataTypes) {
-      if (_.has(data, dataType)) {
+      if (has(data, dataType)) {
         const dataArray = data[dataType];
 
         for (let i = 0; i < dataArray.length; i++) {
           const dataItem = dataArray[i];
-          if (_.has(dataItem, 'id')) {
-            // 使用 _.isString() 检查 dataItem.id 是否为字符串类型
-            if (!_.isString(dataItem.id)) {
+          if (has(dataItem, 'id')) {
+            // 使用 isString() 检查 dataItem.id 是否为字符串类型
+            if (!isString(dataItem.id)) {
               data[dataType][i].id = `${dataArray[i].id}`;
             }
           } else {
@@ -660,9 +678,9 @@ const requestMethod = (file) => {
 
 // 导出
 const exportData = async () => {
-  if (!_.includes(_.values(active.export), true)) return;
+  if (!includes(values(active.export), true)) return;
 
-  const activeList = _.keys(_.pickBy(active.export, _.identity));
+  const activeList = keys(pickBy(active.export, identity));
   const dbData = await exportDb(activeList);
   const str = JSON.stringify(dbData, null, 2);
 
@@ -705,12 +723,12 @@ const getThumbnailSize = () => {
 
 // 清理缓存
 const clearData = async () => {
-  if (!_.some(active.clear)) return;
+  if (!some(active.clear)) return;
 
   try {
-    const activeList = _.keys(_.pickBy(active.clear, _.identity));
+    const activeList = keys(pickBy(active.clear, identity));
     let activeToRemove = ["thumbnail"];
-    const formatActive = _.difference(activeList, activeToRemove);
+    const formatActive = difference(activeList, activeToRemove);
     await clearDb(formatActive);
 
     const actions: any = {
@@ -756,7 +774,7 @@ const clearData = async () => {
     };
 
     for (let action of activeList) {
-      if (_.has(actions, action)) {
+      if (has(actions, action)) {
         await actions[action]();
       }
     }

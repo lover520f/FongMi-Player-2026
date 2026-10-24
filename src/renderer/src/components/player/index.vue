@@ -13,7 +13,6 @@
 import '@/style/player/index.less';
 
 import { computed, ref } from 'vue';
-import _ from 'lodash';
 
 import { playerCreate, playerDestroy } from '@/utils/common/player';
 import { checkMediaType } from '@/utils/tool';

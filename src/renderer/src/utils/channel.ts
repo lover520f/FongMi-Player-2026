@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
-import _ from 'lodash';
+import has from 'lodash/has';
+import isString from 'lodash/isString';
 
 import request from '@/utils/request';
 
@@ -77,9 +78,9 @@ const parseChannel = async (type: 'local' | 'remote' | 'url', path: string) => {
 
       for (let i = 0; i < channelContent.length; i++) {
         const dataItem = channelContent[i];
-        if (_.has(dataItem, 'id')) {
-          // 使用 _.isString() 检查 dataItem.id 是否为字符串类型
-          if (!_.isString(dataItem.id)) {
+        if (has(dataItem, 'id')) {
+          // 使用 isString() 检查 dataItem.id 是否为字符串类型
+          if (!isString(dataItem.id)) {
             channelContent[i].id = `${channelContent[i].id.id}`;
           }
         } else {

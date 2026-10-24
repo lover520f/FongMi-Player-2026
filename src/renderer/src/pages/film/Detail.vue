@@ -167,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import _ from 'lodash';
+import find from 'lodash/find';
 import moment from 'moment';
 import {
   ChevronDownIcon,
@@ -276,7 +276,7 @@ const active = reactive({
 
 const snifferAnalyze = computed(() => {
   const analyzeSource = active.analyzeId
-    ? _.find(dataAnalyze.value.active, { id: active.analyzeId })
+    ? find(dataAnalyze.value.active, { id: active.analyzeId })
     : dataAnalyze.value.default;
 
   const data = {

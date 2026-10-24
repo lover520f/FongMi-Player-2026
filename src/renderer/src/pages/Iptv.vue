@@ -73,7 +73,11 @@ import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css';
 import 'v3-infinite-loading/lib/style.css';
 
 import { ContextMenu, ContextMenuItem } from '@imengyu/vue3-context-menu';
-import _ from 'lodash';
+import find from 'lodash/find';
+import findIndex from 'lodash/findIndex';
+import has from 'lodash/has';
+import isEmpty from 'lodash/isEmpty';
+import slice from 'lodash/slice';
 import PQueue from 'p-queue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
@@ -286,19 +290,19 @@ onUnmounted(() => {
 const getSetting = async () => {
   try {
     const data = await fetchIptvActive();
-    if (_.has(data, 'default') && !_.isEmpty(data["default"])) {
+    if (has(data, 'default') && !isEmpty(data["default"])) {
       iptvConfig.value.default = data["default"];
       active.value.nav = data["default"]["id"];
     }
-    if (_.has(data, 'ext') && !_.isEmpty(data["ext"])) {
+    if (has(data, 'ext') && !isEmpty(data["ext"])) {
       iptvConfig.value.ext = data["ext"];
     }
-    if (_.has(data, 'data') && !_.isEmpty(data["data"])) {
+    if (has(data, 'data') && !isEmpty(data["data"])) {
       iptvConfig.value.data = data["data"];
     }
 
     // 没有任何直播源时整页给空态，而不是留一个永远空着的列表
-    if (_.isEmpty(iptvConfig.value.data)) {
+    if (isEmpty(iptvConfig.value.data)) {
       pageState.value = 'noSource';
       isVisible.infiniteLoading = false;
       return;
@@ -373,7 +377,7 @@ const load = async (
   try {
     const resLength = await getChannel();
 
-    if (_.isEmpty(active.value.nav) && _.isEmpty(channelData.value.list)) {
+    if (isEmpty(active.value.nav) && isEmpty(channelData.value.list)) {
       infiniteCompleteTip.value = 'noData';
       $state.complete();
       // return;
@@ -475,7 +479,7 @@ const checkChannelDelay = async (pageIndex: number, pageSize: number) => {
   console.log(`[channel] checkChannelDelay`);
   const start = pageIndex * pageSize;
   const end = (pageIndex + 1) * pageSize;
-  const dataList = _.slice(channelData.value.list, start, end); // 从原数组中截取需要处理的数据段
+  const dataList = slice(channelData.value.list, start, end); // 从原数组中截取需要处理的数据段
 
   const updateStatus = async (item) => {
     try {
@@ -503,12 +507,12 @@ const generateThumbnail = async (pageIndex: number, pageSize: number) => {
   console.log(`[channel] generateThumbnail`);
   const start = pageIndex * pageSize;
   const end = (pageIndex + 1) * pageSize;
-  const dataList = _.slice(channelData.value.list, start, end); // 从原数组中截取需要处理的数据段
+  const dataList = slice(channelData.value.list, start, end); // 从原数组中截取需要处理的数据段
 
   const updateThumbnail = async (item) => {
     window.electron.ipcRenderer.invoke('ffmpeg-thumbnail', item.url, item.id).then(res => {
       if (res) {
-        const index = _.findIndex(channelData.value.list, { id: res.key });
+        const index = findIndex(channelData.value.list, { id: res.key });
         channelData.value.list[index]["thumbnail"] = res.url;
       }
     });
@@ -537,7 +541,7 @@ const clearQueue = () => {
 // 切换源
 const changeDefaultIptvEvent = async (id: string) => {
   if (isVisible.loading) return;
-  const item = _.find(iptvConfig.value.data, { id }) as any;
+  const item = find(iptvConfig.value.data, { id }) as any;
   if (!item) return;
 
   isVisible.loading = true;

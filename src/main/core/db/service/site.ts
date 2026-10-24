@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import castArray from 'lodash/castArray';
 import db from '../index';
 
 const TABLE_NAME = 'tbl_site';
@@ -6,7 +6,7 @@ const TABLE_NAME = 'tbl_site';
 export default {
   all() {
     const db_res = db.get(TABLE_NAME).value();
-    return _.castArray(db_res);
+    return castArray(db_res);
   },
   update(id, doc) {
     return db.get(TABLE_NAME).find({ id }).assign(doc).write();
@@ -15,7 +15,7 @@ export default {
     return db.set(TABLE_NAME, []).write();
   },
   set(docs) {
-    docs = _.castArray(docs);
+    docs = castArray(docs);
     return db.set(TABLE_NAME, docs).write();
   },
   find(doc) {
@@ -43,7 +43,7 @@ export default {
     };
   },
   pagination(kw: string) {
-    let data = _.castArray(db.get(TABLE_NAME).value());
+    let data = castArray(db.get(TABLE_NAME).value());
     if (kw) {
       data = db
         .get(TABLE_NAME)
