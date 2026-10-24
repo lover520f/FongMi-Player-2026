@@ -2473,7 +2473,9 @@ window.electron.ipcRenderer.on('destroy-playerWindow', () => {
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        z-index: 95;
+        // 必须高于 .player-error-mask 的 z-index(100)：播放出错时错误遮罩 inset:0
+        // 会铺满播放器区域，若按钮层级低于遮罩，会被盖住导致无法点击收起剧集面板。
+        z-index: 110;
         cursor: pointer;
 
         &:hover {
