@@ -46,6 +46,11 @@ export default {
     desc: 'The source may be unavailable, try again or switch the line',
     retry: 'Retry',
   },
+  next: {
+    tip: 'Next episode in {0}s',
+    play: 'Play now',
+    cancel: 'Cancel',
+  },
   placeholder: {
     analyze: 'AnalyzeApi',
   },

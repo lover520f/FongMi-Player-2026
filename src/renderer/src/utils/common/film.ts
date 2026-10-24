@@ -100,6 +100,10 @@ const fetchHistoryData = async (relateId: string, videoId: number) => {
     duration: null,
     skipTimeInStart: 30,
     skipTimeInEnd: 30,
+    // 每集进度：{ [集名]: { watchTime, duration, playEnd } }
+    // 一部片只有一条历史记录，videoIndex/watchTime 只代表「最后看的那一集」，
+    // 切集时会把上一集的进度覆盖掉，所以按集单独存一份。
+    progress: {},
   };
 
   try {

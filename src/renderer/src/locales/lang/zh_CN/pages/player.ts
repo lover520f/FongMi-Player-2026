@@ -46,6 +46,11 @@ export default {
     desc: '资源可能已失效,可尝试重试或切换线路',
     retry: '重试',
   },
+  next: {
+    tip: '{0} 秒后播放下一集',
+    play: '立即播放',
+    cancel: '取消',
+  },
   placeholder: {
     analyze: '解析接口',
   },

@@ -116,6 +116,19 @@
                     </div>
                   </div>
                 </div>
+                <div v-if="nextCountdown > 0" class="next-tip">
+                  <div class="next-tip-card">
+                    <span class="next-tip-title">{{ $t('pages.player.next.tip', [nextCountdown]) }}</span>
+                    <div class="next-tip-actions">
+                      <t-button theme="primary" size="small" @click="confirmNextPlay">
+                        {{ $t('pages.player.next.play') }}
+                      </t-button>
+                      <t-button theme="default" size="small" variant="outline" @click="cancelNextPlay">
+                        {{ $t('pages.player.next.cancel') }}
+                      </t-button>
+                    </div>
+                  </div>
+                </div>
                 <div v-if="isVisible.playError" class="player-error-mask">
                   <div class="player-error-content">
                     <p class="player-error-msg">{{ playErrorMsg }}</p>
@@ -565,6 +578,37 @@ const VIDEO_PROCESS_DOC = reactive({
   duration: 0,
 });
 
+// ===== 连播倒计时 =====
+// 片尾直接切下一集太突然（尤其是跟着片尾字幕看的时候），这里给 5 秒缓冲并可取消。
+// 倒计时期间即视为本集已看完，取消后也不再重复弹出，直到用户拖回正片。
+const NEXT_COUNTDOWN_SECONDS = 5;
+const nextCountdown = ref(0);
+const nextDismissed = ref(false);
+let nextCountdownTimer: ReturnType<typeof setInterval> | null = null;
+let nextPlayCallback: (() => void) | null = null;
+
+const clearNextCountdown = () => {
+  if (nextCountdownTimer) {
+    clearInterval(nextCountdownTimer);
+    nextCountdownTimer = null;
+  }
+  nextCountdown.value = 0;
+  nextPlayCallback = null;
+};
+
+// 立即播放下一集
+const confirmNextPlay = () => {
+  const callback = nextPlayCallback;
+  clearNextCountdown();
+  callback?.();
+};
+
+// 取消连播：停留在此集片尾，拖回正片后可再次触发
+const cancelNextPlay = () => {
+  clearNextCountdown();
+  nextDismissed.value = true;
+};
+
 const dataAnalyze = ref({
   default: { url: '' },
   flag: [],
@@ -709,6 +753,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreenState);
   restoreFullscreenRedirect?.();
   restoreFullscreenRedirect = null;
+  clearNextCountdown();
   exitFullscreenIfNeeded();
 });
 
@@ -863,7 +908,8 @@ watch(
     let pos = oldList.indexOf(active.filmIndex);
     if (pos < 0) pos = 0;
     const episode = newList[Math.min(pos, newList.length - 1)];
-    if (episode && episode !== active.filmIndex) changeEvent(episode);
+    // 换线路时集名变了但内容相同，沿用当前进度
+    if (episode && episode !== active.filmIndex) changeEvent(episode, false, { keepProgress: true });
   }
 );
 
@@ -926,12 +972,44 @@ const fetchHistory = async (): Promise<void> => {
   skipConfig.value = { skipTimeInStart, skipTimeInEnd };
 };
 
+// 某一集应该从第几秒开始播
+// - 有该集自己的进度：用它；已看完（playEnd）则从头开始，避免重开直接跳片尾又触发连播
+// - 没有该集进度：用调用方给的兜底值（老数据只有整部片一条 watchTime）
+const episodeStartTime = (episode?: string, fallbackWatch = 0): number => {
+  const progress = dataHistory.value?.progress || {};
+  const saved = episode ? progress[episode] : null;
+  const start = set.value.skipStartEnd ? skipConfig.value.skipTimeInStart : 0;
+
+  if (saved) {
+    if (saved.playEnd) return start;
+    const watch = saved.watchTime || 0;
+    if (!(watch > 0)) return start;
+    if (set.value.skipStartEnd && watch < skipConfig.value.skipTimeInStart) return start;
+    return watch;
+  }
+
+  const watch = fallbackWatch || 0;
+  if (!(watch > 0)) return start;
+  if (set.value.skipStartEnd && watch < skipConfig.value.skipTimeInStart) return start;
+  return watch;
+};
+
 // 更新历史
 let historySaving = false;
 const putHistory = async (): Promise<void> => {
   if (historySaving) return; // 防止并发时重复addHistory产生多条记录
   historySaving = true;
   try {
+    // 每集进度：以集名为 key（换线路时序号会漂移，集名更稳）
+    const progress = { ...(dataHistory.value?.progress || {}) };
+    if (active.filmIndex) {
+      progress[active.filmIndex] = {
+        watchTime: VIDEO_PROCESS_DOC.watchTime || 0,
+        duration: VIDEO_PROCESS_DOC.duration || 0,
+        playEnd: !!VIDEO_PROCESS_DOC.playEnd
+      };
+    }
+
     const doc = {
       date: moment().unix(),
       type: 'film',
@@ -945,7 +1023,8 @@ const putHistory = async (): Promise<void> => {
       watchTime: VIDEO_PROCESS_DOC.watchTime,
       duration: VIDEO_PROCESS_DOC.duration,
       skipTimeInStart: skipConfig.value.skipTimeInStart,
-      skipTimeInEnd: skipConfig.value.skipTimeInEnd
+      skipTimeInEnd: skipConfig.value.skipTimeInEnd,
+      progress
     };
 
     const response = await putHistoryData(dataHistory.value?.id, doc);
@@ -978,7 +1057,6 @@ const filmPlayAndHandleResponse = async (snifferMode, url, site, analyze, flimSo
 // 初始化film
 const initFilmPlayer = async (isFirst) => {
   const { site } = ext.value;
-  tmp.skipTime = 0;
   await getDetailInfo();
 
   if (!isFirst) {
@@ -989,18 +1067,11 @@ const initFilmPlayer = async (isFirst) => {
     fetchRecommend();
     fetchBinge();
 
-    // 跳过时间
-    if (set.value.skipStartEnd && dataHistory.value.watchTime < skipConfig.value.skipTimeInStart) {
-      tmp.skipTime = skipConfig.value.skipTimeInStart;
-    } else {
-      tmp.skipTime = dataHistory.value["watchTime"] || 0;
-    }
-  } else {
-    tmp.skipTime = dataHistory.value.watchTime || 0;
-    if (set.value.skipStartEnd && dataHistory.value.watchTime < skipConfig.value.skipTimeInStart) {
-      tmp.skipTime = skipConfig.value.skipTimeInStart;
-    }
+    // 从「当前这一集」的进度开始；老数据没有 progress 字段，退回整部片的 watchTime
+    const legacyWatch = active.filmIndex === dataHistory.value?.videoIndex ? dataHistory.value?.watchTime : 0;
+    tmp.skipTime = episodeStartTime(active.filmIndex, legacyWatch);
   }
+  // isFirst（切集/换线路）时 tmp.skipTime 已由 changeEvent 按目标集的进度算好
 
   // 解析直链
   const { snifferMode, skipAd } = set.value;
@@ -1061,28 +1132,46 @@ const getDetailInfo = async (): Promise<void> => {
 };
 
 // 切换选集 silent: 连播链路静默失败,由调用方统一展示错误
-const changeEvent = async (item, silent = false) => {
+const changeEvent = async (item, silent = false, opts: { keepProgress?: boolean } = {}) => {
   if (switching) return false;
   switching = true;
   cancelPlayError();
+  clearNextCountdown();
   if (reRegisterTimer) {
     clearTimeout(reRegisterTimer);
     reRegisterTimer = null;
   }
   try {
+    // 先把上一集的真实进度落库：必须在改 active.filmIndex 之前，
+    // 否则旧进度会被写到新集上；原实现还会把旧进度直接重置成 0，等于切一集丢一集。
+    const prevIndex = active.filmIndex;
+    const prevWatch = VIDEO_PROCESS_DOC.watchTime || 0;
+    const prevEnd = !!VIDEO_PROCESS_DOC.playEnd;
+    if (prevIndex) {
+      const progress = { ...(dataHistory.value?.progress || {}) };
+      progress[prevIndex] = {
+        watchTime: prevWatch,
+        duration: VIDEO_PROCESS_DOC.duration || 0,
+        playEnd: prevEnd
+      };
+      dataHistory.value = { ...(dataHistory.value || {}), progress };
+    }
+    await putHistory();
+
     active.filmIndex = item;
 
-    // 换源/换集按选集列表位置比较,跨源集数命名不一致时也能正确判断是否继续当前进度
-    const historyList: string[] = season.value?.[dataHistory.value["siteSource"]] || [];
-    const currentList: string[] = season.value?.[active.flimSource] || [];
-    const posHistory = historyList.indexOf(dataHistory.value["videoIndex"]);
-    const posCurrent = currentList.indexOf(item);
-    if (posHistory !== posCurrent) {
-      VIDEO_PROCESS_DOC.watchTime = 0;
-      VIDEO_PROCESS_DOC.playEnd = false;
-    };
+    // 目标集从哪开始：该集有自己的进度就用它；换线路沿用当前进度；否则从头
+    const saved = (dataHistory.value?.progress || {})[item];
+    const start = set.value.skipStartEnd ? skipConfig.value.skipTimeInStart : 0;
+    let seek = start;
+    if (saved) seek = saved.playEnd ? start : saved.watchTime || start;
+    else if (opts.keepProgress) seek = prevEnd ? start : prevWatch;
 
-    await putHistory();
+    VIDEO_PROCESS_DOC.watchTime = seek;
+    VIDEO_PROCESS_DOC.duration = 0;
+    VIDEO_PROCESS_DOC.playEnd = false;
+    nextDismissed.value = false; // 新一集重新允许片尾倒计时
+    tmp.skipTime = seek;
 
     if (tmp.preloadNext?.url && tmp.preloadIndex === item && set.value.preloadNext) {
       const { playerMode } = set.value;
@@ -1099,8 +1188,8 @@ const changeEvent = async (item, silent = false) => {
         };
         tmp.preloadBarrage = [];
       };
-      if (set.value.skipStartEnd) {
-        await playerSeek(player.value, playerMode.type, skipConfig.value.skipTimeInStart);
+      if (tmp.skipTime) {
+        await playerSeek(player.value, playerMode.type, tmp.skipTime);
       };
       setSystemMediaInfo(); // 更新系统媒体信息
       reRegisterTimer = setTimeout(async () => {
@@ -1212,6 +1301,24 @@ const timerUpdatePlayProcess = async () => {
     if (ok) MessagePlugin.info(t('pages.player.message.next'));
   };
 
+  // 片尾倒计时：先记录「本集已看完」，再给 5 秒缓冲
+  const startNextCountdown = () => {
+    nextPlayCallback = autoPlayNext;
+    nextCountdown.value = NEXT_COUNTDOWN_SECONDS;
+    // playEnd 先落库：即使中途取消，重开这一集也应该从头开始而不是跳片尾
+    VIDEO_PROCESS_DOC.playEnd = true;
+    putHistoryThrottled();
+
+    nextCountdownTimer = setInterval(() => {
+      nextCountdown.value -= 1;
+      if (nextCountdown.value <= 0) {
+        const callback = nextPlayCallback;
+        clearNextCountdown();
+        callback?.();
+      }
+    }, 1000);
+  };
+
   const onTimeUpdate = async (currentTime: number, duration: number) => {
     if (currentTime) cancelPlayError();
     VIDEO_PROCESS_DOC.watchTime = currentTime;
@@ -1219,8 +1326,19 @@ const timerUpdatePlayProcess = async () => {
 
     const watchTime = set.value.skipStartEnd ? currentTime + skipConfig.value.skipTimeInEnd : currentTime;
     if (duration && watchTime >= duration) {
-      if (!switching) autoPlayNext();
-    } else putHistoryThrottled();
+      if (!switching) {
+        if (!isLast() && set.value.autoNext) {
+          if (!nextCountdown.value && !nextDismissed.value) startNextCountdown();
+        } else {
+          VIDEO_PROCESS_DOC.playEnd = true;
+          putHistoryThrottled();
+        }
+      }
+    } else {
+      // 拖回正片后重新允许倒计时
+      if (nextDismissed.value && duration && watchTime + 5 < duration) nextDismissed.value = false;
+      putHistoryThrottled();
+    }
 
     // 预加载下一步链接 提前30秒预加载
     if (duration && watchTime + 30 >= duration) {
@@ -1755,6 +1873,35 @@ window.electron.ipcRenderer.on('destroy-playerWindow', () => {
                 width: 100%;
                 height: 100%;
                 position: relative;
+              }
+            }
+
+            // 片尾连播倒计时（放在 .mse-wrap 内，全屏时同样可见）
+            .next-tip {
+              position: absolute;
+              right: 24px;
+              bottom: 76px;
+              z-index: 40;
+
+              .next-tip-card {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 14px;
+                border-radius: 8px;
+                background: rgba(0, 0, 0, 0.78);
+                backdrop-filter: blur(6px);
+                color: #fbfbfb;
+
+                .next-tip-title {
+                  font-size: 13px;
+                  white-space: nowrap;
+                }
+
+                .next-tip-actions {
+                  display: flex;
+                  gap: 8px;
+                }
               }
             }
 
