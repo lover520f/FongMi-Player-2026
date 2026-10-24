@@ -11,6 +11,12 @@ export default {
     copyChannel: 'Copy Channel',
     delChannel: 'Delete Channel'
   },
+  state: {
+    noSourceTitle: 'No live source yet',
+    noSourceDesc: 'Add a live source and set it as default, then channels will show up here',
+    errorTitle: 'Failed to load the live source config',
+    errorDesc: 'Reading the config failed, retry or check the live source in settings'
+  },
   message: {
     setSuccess: 'Setup success',
     setFail: 'Setup failure, error message',

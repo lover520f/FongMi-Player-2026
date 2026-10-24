@@ -8,7 +8,16 @@
       @change-key="changeSitesEvent"
     />
     <div class="content">
-      <header v-if="classConfig.data.length > 0" class="header">
+      <!-- 无源/请求失败时不再只剩一片空白：给出原因、重试入口和直达设置的按钮 -->
+      <state-view
+        v-if="pageState"
+        :type="pageState === 'error' ? 'error' : 'empty'"
+        :title="stateText.title"
+        :description="stateText.desc"
+        :action-text="pageState === 'noSource' ? $t('pages.state.goSetting') : $t('pages.state.retry')"
+        @action="pageState === 'noSource' ? goSiteSetting() : retryLoad()"
+      />
+      <header v-if="!pageState && classConfig.data.length > 0" class="header">
         <div class="header-nav">
           <tag-nav :list="classConfig.data" :active="active.class" @change-key="changeClassEvent" />
         </div>
@@ -16,7 +25,8 @@
           <root-list-icon size="large" @click="isVisible.toolbar = !isVisible.toolbar" />
         </div>
       </header>
-      <div class="container" :class="classConfig.data.length > 0 ? 'container-full' : 'container-hidden'">
+      <div v-if="!pageState" class="container"
+        :class="classConfig.data.length > 0 ? 'container-full' : 'container-hidden'">
         <!-- 过滤工具栏 -->
         <div v-show="isVisible.toolbar" class="filter header-wrapper">
           <div class="tags">
@@ -127,11 +137,12 @@ import PQueue from 'p-queue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { RootListIcon } from 'tdesign-icons-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { onActivated, onUnmounted, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onUnmounted, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { prefix } from '@/config/global';
 import { t } from '@/locales';
-import { usePlayStore } from '@/store';
+import { usePlayStore, useSettingStore } from '@/store';
 
 import { fetchSiteActive } from '@/api/site';
 import emitter from '@/utils/emitter';
@@ -148,9 +159,12 @@ import {
 import DetailView from './film/Detail.vue';
 import FolderView from './film/DialogFolder.vue';
 import CommonNav from '../components/common-nav/index.vue';
+import StateView from '../components/state-view/index.vue';
 import TagNav from '../components/tag-nav/index.vue';
 
 const storePlayer = usePlayStore();
+const storeSetting = useSettingStore();
+const router = useRouter();
 
 const renderError = () => {
   return (
@@ -212,6 +226,34 @@ const filter = ref({
 
 const infiniteCompleteTip = ref(`${t('pages.film.infiniteLoading.noMore')}`);
 const listGen = ref(0); // 列表请求代次：切站/分类/筛选/搜索后递增，过期响应直接丢弃
+
+// 整页状态：'' = 正常渲染列表，noSource = 没有可用源，error = 源配置请求失败
+const pageState = ref<'' | 'noSource' | 'error'>('');
+
+const stateText = computed(() => {
+  const key = pageState.value === 'error' ? 'error' : pageState.value === 'noSource' ? 'noSource' : 'empty';
+  return {
+    title: t(`pages.film.state.${key}Title`),
+    desc: t(`pages.film.state.${key}Desc`),
+  };
+});
+
+// 空态直接把人送到「影视源设置」，不要求用户自己翻菜单
+const goSiteSetting = () => {
+  storeSetting.updateConfig({ sysConfigSwitch: 'siteSource' });
+  router.push('/setting/index');
+};
+
+// 重试：清掉上一轮的列表与分页，让 infinite-loading 以新的 identifier 重新触发
+const retryLoad = async () => {
+  pageState.value = '';
+  isVisible.infiniteLoading = false;
+  filmData.value = { list: [], rawList: [] };
+  listGen.value++;
+  pagination.value.pageIndex = 1;
+  await getSetting();
+  if (!pageState.value) infiniteId.value++;
+};
 
 // per-site cache: switch source without full refetch
 const siteViewCache = new Map<string, any>();
@@ -403,11 +445,19 @@ const getSetting = async () => {
       siteConfig.value.search = data['search'];
       siteConfig.value.searchGroup = searchGroup(data['search']);
     }
+    // 一个源都没有：整页换成空态并给出「前往设置」，而不是只留一行提示文案
+    if (_.isEmpty(active.value.nav)) {
+      pageState.value = 'noSource';
+      isVisible.infiniteLoading = false;
+      return;
+    }
+    pageState.value = '';
     isVisible.infiniteLoading = true;
   } catch (err) {
     console.log(err);
     infiniteCompleteTip.value = t('pages.film.infiniteLoading.netwotkError');
-    isVisible.infiniteLoading = true; // 保持加载器渲染错误提示，避免白屏无反馈
+    pageState.value = 'error';
+    isVisible.infiniteLoading = false;
     MessagePlugin.error(t('pages.film.infiniteLoading.netwotkError'));
   }
 };

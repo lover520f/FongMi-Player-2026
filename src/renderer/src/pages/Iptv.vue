@@ -3,12 +3,21 @@
     <common-nav :title="$t('pages.iptv.name')" :list="iptvConfig.data" :active="active.nav" search
       @change-key="changeDefaultIptvEvent" />
     <div class="content">
-      <header class="header">
+      <!-- 配置读取失败原先会把 loading 和错误插槽一起关掉，页面全白且没有任何重试入口 -->
+      <state-view
+        v-if="pageState"
+        :type="pageState === 'error' ? 'error' : 'empty'"
+        :title="stateText.title"
+        :description="stateText.desc"
+        :action-text="pageState === 'noSource' ? $t('pages.state.goSetting') : $t('pages.state.retry')"
+        @action="pageState === 'noSource' ? goIptvSetting() : retryLoad()"
+      />
+      <header v-if="!pageState" class="header">
         <div class="header-nav">
           <TagNav :list="classConfig.data" :active="active.class" @change-key="changeClassEvent" />
         </div>
       </header>
-      <div class="container">
+      <div v-if="!pageState" class="container">
         <div class="content-wrapper" id="back-top">
           <t-row :gutter="[16, 16]" style="margin: 0;">
             <t-col :md="3" :lg="3" :xl="2" :xxl="1" v-for="item in channelData.list" :key="item.id" class="card"
@@ -65,6 +74,7 @@ import PQueue from 'p-queue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
 import { computed, onActivated, onMounted, ref, reactive } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { prefix } from '@/config/global';
 import { t } from '@/locales';
@@ -77,10 +87,12 @@ import emitter from '@/utils/emitter';
 import { checkUrlIpv6, copyToClipboardApi } from '@/utils/tool';
 
 import CommonNav from '../components/common-nav/index.vue';
+import StateView from '../components/state-view/index.vue';
 import TagNav from '../components/tag-nav/index.vue';
 
 const storePlayer = usePlayStore();
 const storeSetting = useSettingStore();
+const router = useRouter();
 
 const renderError = () => {
   return (
@@ -102,6 +114,31 @@ const isVisible = reactive({
   contentMenu: false,
   loading: false
 });
+
+// 整页状态：'' 正常，noSource 没有可用直播源，error 配置请求失败
+const pageState = ref<'' | 'noSource' | 'error'>('');
+
+const stateText = computed(() => {
+  const key = pageState.value === 'error' ? 'error' : pageState.value === 'noSource' ? 'noSource' : 'error';
+  return {
+    title: t(`pages.iptv.state.${key}Title`),
+    desc: t(`pages.iptv.state.${key}Desc`),
+  };
+});
+
+const goIptvSetting = () => {
+  storeSetting.updateConfig({ sysConfigSwitch: 'iptvSource' });
+  router.push('/setting/index');
+};
+
+const retryLoad = async () => {
+  pageState.value = '';
+  isVisible.infiniteLoading = false;
+  channelData.value = { list: [], total: 0 };
+  pagination.value.pageIndex = 0;
+  await getSetting();
+  if (!pageState.value) infiniteId.value++;
+};
 const searchTxt = ref('');
 const infiniteId = ref(+new Date());
 const infiniteCompleteTip = ref('noMore');
@@ -178,8 +215,19 @@ const getSetting = async () => {
       iptvConfig.value.data = data["data"];
     }
 
+    // 没有任何直播源时整页给空态，而不是留一个永远空着的列表
+    if (_.isEmpty(iptvConfig.value.data)) {
+      pageState.value = 'noSource';
+      isVisible.infiniteLoading = false;
+      return;
+    }
+
+    pageState.value = '';
     isVisible.infiniteLoading = true;
   } catch (err) {
+    // 原先这里只是把加载器关掉，页面变成一片空白且没有重试入口
+    console.error('[iptv][setting]', err);
+    pageState.value = 'error';
     isVisible.infiniteLoading = false;
   }
 };

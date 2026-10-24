@@ -3,7 +3,15 @@
     <common-nav :title="$t('pages.drive.name')" :list="driveConfig.data" :active="active.nav" search
       @change-key="changeDefaultIptvEvent" />
     <div class="content">
-      <header class="header">
+      <state-view
+        v-if="pageState"
+        :type="pageState === 'error' ? 'error' : 'empty'"
+        :title="stateText.title"
+        :description="stateText.desc"
+        :action-text="pageState === 'noSource' ? $t('pages.state.goSetting') : $t('pages.state.retry')"
+        @action="pageState === 'noSource' ? goDriveSetting() : retryLoad()"
+      />
+      <header v-if="!pageState" class="header">
         <div class="page-title">
           <div class="title">
             <t-breadcrumb :max-item-width="'80%'">
@@ -22,7 +30,7 @@
 </div> -->
         </div>
       </header>
-      <div class="container">
+      <div v-if="!pageState" class="container">
         <div class="content-wrapper">
           <div class="container-flow-wrap">
             <div v-for="item in driveContent" :key="item.path" class="card-wrap">
@@ -41,7 +49,8 @@
               </div>
             </div>
           </div>
-          <div v-if="driveContent.length === 0 && !isVisible.loading" style="min-height: 1px; text-align: center; margin-bottom: 2em;">
+          <!-- 目录为空只说明当前文件夹是空的，不必占用整页；配置缺失时由上面的 pageState 处理 -->
+          <div v-if="driveContent.length === 0 && !isVisible.loading" class="drive-empty-tip">
             {{ infiniteCompleteTip }}
           </div>
         </div>
@@ -60,19 +69,23 @@ import 'v3-infinite-loading/lib/style.css';
 import _ from 'lodash';
 import { Tv1Icon, LoadingIcon } from 'tdesign-icons-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
-import { onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { prefix } from '@/config/global';
 import { t } from '@/locales';
-import { usePlayStore } from '@/store';
+import { usePlayStore, useSettingStore } from '@/store';
 
 import { fetchDriveActive } from '@/api/drive';
 import emitter from '@/utils/emitter';
 import { __jsEvalReturn } from '@/utils/alist_open';
 
 import CommonNav from '../components/common-nav/index.vue';
+import StateView from '../components/state-view/index.vue';
 
 const storePlayer = usePlayStore();
+const storeSetting = useSettingStore();
+const router = useRouter();
 
 const spider = ref<any>(null);
 const renderError = () => {
@@ -116,6 +129,29 @@ const breadcrumb = ref<any[]>([]);
 
 const infiniteCompleteTip = ref(`${t('pages.drive.infiniteLoading.noData')}`);
 
+// 整页状态：'' 正常，noSource 没有可用网盘源，error 配置/目录读取失败
+const pageState = ref<'' | 'noSource' | 'error'>('');
+
+const stateText = computed(() => {
+  const key = pageState.value === 'noSource' ? 'noSource' : 'error';
+  return {
+    title: t(`pages.drive.state.${key}Title`),
+    desc: t(`pages.drive.state.${key}Desc`),
+  };
+});
+
+const goDriveSetting = () => {
+  storeSetting.updateConfig({ sysConfigSwitch: 'driveSource' });
+  router.push('/setting/index');
+};
+
+const retryLoad = async () => {
+  pageState.value = '';
+  driveContent.value = [];
+  await getSetting();
+  if (!pageState.value && active.value.nav) await initCloud();
+};
+
 onMounted(async () => {
   await getSetting();
   if (active.value.nav) await initCloud();
@@ -140,8 +176,15 @@ const getSetting = async () => {
     if (_.has(data, 'data') && !_.isEmpty(data["data"])) {
       driveConfig.value.data = data["data"];
     }
+    // 没有默认网盘源时整页给空态 + 直达设置，而不是留一句「暂无数据」
+    if (_.isEmpty(active.value.nav)) {
+      pageState.value = 'noSource';
+      return;
+    }
+    pageState.value = '';
   } catch (err) {
     console.error('[drive][getSetting][error]', err);
+    pageState.value = 'error';
     MessagePlugin.error(t('pages.drive.message.reqError'));
   }
 };
@@ -162,6 +205,7 @@ const initCloud = async () => {
   } catch (err) {
     console.error('[drive][initCloud][error]', err);
     infiniteCompleteTip.value = t('pages.drive.message.reqError');
+    pageState.value = 'error';
     MessagePlugin.error(t('pages.drive.message.reqError'));
   } finally {
     isVisible.loading = false;
@@ -357,6 +401,13 @@ const refreshDriveConfig = async () => {
     background-color: var(--td-bg-color-container);
     border-radius: var(--td-radius-default);
     flex: 1;
+
+    .drive-empty-tip {
+      min-height: 1px;
+      text-align: center;
+      margin-bottom: 2em;
+      color: var(--td-text-color-secondary);
+    }
 
     .header {
       height: 40px;

@@ -12,6 +12,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SharePopup: typeof import('./src/components/share-popup/index.vue')['default']
+    StateView: typeof import('./src/components/state-view/index.vue')['default']
     TagNav: typeof import('./src/components/tag-nav/index.vue')['default']
     TAside: typeof import('tdesign-vue-next')['Aside']
     TBackTop: typeof import('tdesign-vue-next')['BackTop']

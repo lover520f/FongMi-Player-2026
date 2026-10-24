@@ -11,6 +11,12 @@ export default {
     copyChannel: '复制频道',
     delChannel: '删除频道'
   },
+  state: {
+    noSourceTitle: '还没有可用的直播源',
+    noSourceDesc: '添加一个直播源并设为默认后, 频道列表才会显示',
+    errorTitle: '直播源配置加载失败',
+    errorDesc: '读取配置时出错了, 可以重试, 或去设置里检查直播源'
+  },
   message: {
     setSuccess: '设置成功',
     setFail: '设置失败, 错误信息',
