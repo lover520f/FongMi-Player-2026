@@ -5,9 +5,32 @@ import Utf8 from 'crypto-js/enc-utf8';
 import xpath from 'xpath';
 import { DOMParser } from '@xmldom/xmldom';
 
-import { doWork as t3Work, terminateWork as t3WorkTerminate } from './drpy';
 import CLASS_FILTER_CONFIG from '@/config/appFilter';
 import request from '@/utils/request';
+
+/**
+ * drpy/t3 规则执行器。
+ *
+ * cms.ts 是首页拉数据的必经模块（首屏静态闭包里有它），早先这里是 `import ... from './drpy'`：
+ * 一旦静态引入，drpy 的 worker（2.3MB）和它依赖的 cheerio / mathjax（合计 3.6MB）就全被
+ * 拖进首屏 —— 而这些东西只有「t3 类型源」真被访问时才用得上。改成首次调用时才加载，
+ * 调用点保持不变（下面两个包装与原导入的签名一致）。
+ */
+let drpyLoader: Promise<typeof import('./drpy')> | null = null;
+const loadDrpy = () => {
+  if (!drpyLoader) drpyLoader = import('./drpy');
+  return drpyLoader;
+};
+
+const t3Work = async (payload: unknown) => {
+  const { doWork } = await loadDrpy();
+  return doWork(payload);
+};
+
+const t3WorkTerminate = async () => {
+  const { terminateWork } = await loadDrpy();
+  return terminateWork();
+};
 
 // 初始化对象xml转json https://github.com/NaturalIntelligence/fast-xml-parser/blob/master/docs/v4/1.GettingStarted.md
 const xmlOptions = {

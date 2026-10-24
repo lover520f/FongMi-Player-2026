@@ -1,11 +1,8 @@
 import Base64 from 'crypto-js/enc-base64';
 import Utf8 from 'crypto-js/enc-utf8';
 import Md5 from 'crypto-js/md5';
-import * as he from 'he';
-import iconv from 'iconv-lite';
 import ip from 'ip';
 import JSON5 from 'json5';
-import pako from 'pako';
 
 import request, { requestComplete } from '@/utils/request';
 import { usePlayStore, useSettingStore } from '@/store';
@@ -63,6 +60,21 @@ const getConfig = async (url: string, method = 'GET', headers = {}, body = {}) =
   }
 };
 
+/**
+ * 按指定字符集解码字节流。
+ * 原先用 iconv-lite，但它整个包 209KB，只为了 getHtml 里的这一次解码 —— 而 getHtml
+ * 只被源编辑页调用，tool.ts 却是全站引用的公共模块，于是 iconv 被绑进了首屏。
+ * Chromium 的 TextDecoder 自带 gbk/gb18030/big5 等解码表，够用且零成本。
+ */
+const decodeByCharset = (data: ArrayBuffer | Uint8Array, charset: string) => {
+  try {
+    return new TextDecoder(charset || 'utf-8').decode(data as ArrayBuffer);
+  } catch {
+    // 未知编码标签（比如后端写了 'undefined'）时退回 utf-8，避免整次请求直接失败
+    return new TextDecoder('utf-8').decode(data as ArrayBuffer);
+  }
+};
+
 const getHtml = async (url: string, method = 'GET', encode = 'UTF-8', headers = {}, body = {}) => {
   try {
     const customHeaders = {
@@ -92,7 +104,7 @@ const getHtml = async (url: string, method = 'GET', encode = 'UTF-8', headers = 
       headers: headers || undefined,
     });
 
-    const res = iconv.decode(Buffer.from(response), encode); // 假设后端编码为GBK
+    const res = decodeByCharset(response, encode); // 后端编码可能是 GBK
     return res || '';
   } catch (err) {
     throw err;
@@ -326,13 +338,6 @@ const decodeAtob = (str: string) => {
   return btoa(str);
 };
 
-const encodeGzip = (str: string) => {
-  return pako.gzip(str, {});
-};
-const decodeGzip = (str: string) => {
-  return pako.inflate(str);
-};
-
 const encodeUnicode = (str: string) => {
   const encodeUnicode = (str: string) => {
     const res: any = [];
@@ -362,14 +367,6 @@ const decodeUrl = (str: string) => {
 
 const encodeMd5 = (str: string) => {
   return Md5(str).toString();
-};
-
-const encodeHtml = (str: string) => {
-  return he.encode(str, { encodeEverything: true });
-};
-
-const decodeHtml = (str: string) => {
-  return he.decode(str);
 };
 
 const getPublicIp = async () => {
@@ -409,10 +406,6 @@ export {
   encodeUrl,
   decodeUrl,
   encodeMd5,
-  encodeGzip,
-  decodeGzip,
   encodeBtoa,
   decodeAtob,
-  encodeHtml,
-  decodeHtml,
 };

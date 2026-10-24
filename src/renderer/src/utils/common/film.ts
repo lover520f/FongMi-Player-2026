@@ -1,7 +1,6 @@
 import _ from 'lodash';
 import Base64 from 'crypto-js/enc-base64';
 import Utf8 from 'crypto-js/enc-utf8';
-import jsonpath from 'jsonpath';
 import PQueue from 'p-queue';
 
 import { fetchAnalyzePlay } from '@/api/analyze';
@@ -501,6 +500,9 @@ const fetchJxJsonPlayUrlHelper = async (playUrl: string, url: string): Promise<s
   let data: string = '';
   try {
     const res = await getConfig(`${playUrl}${url}`);
+    // jsonpath 191KB，只为了取一个顶层 url —— 而这个官解流程平时不会触发，
+    // 改成用到时才加载，别让它占着首屏（film.ts 是列表页的公共模块）
+    const { default: jsonpath } = await import('jsonpath');
     // 存在 url data.url 两种结构
     if (jsonpath.value(res, '$.url')) {
       data = jsonpath.value(res, '$.url');

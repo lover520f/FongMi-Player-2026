@@ -2,6 +2,7 @@ node_modules
 dist
 out
 smoke-artifacts
+bundle-report.txt
 thumbnail
 .DS_Store
 *.log*

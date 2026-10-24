@@ -226,7 +226,8 @@ import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 
 import { t } from '@/locales';
 import { useSettingStore } from '@/store';
-import { getHtml, copyToClipboardApi, encodeGzip, encodeBtoa } from '@/utils/tool';
+import { getHtml, copyToClipboardApi, encodeBtoa } from '@/utils/tool';
+import { encodeGzip } from '@/utils/gzip';
 import { getFilters, processCategories } from '@/utils/drpy/lab/hipyFilter';
 
 const storeSetting = useSettingStore();

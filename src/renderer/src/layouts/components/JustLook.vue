@@ -31,7 +31,6 @@ import '@/style/player/veplayer.css';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { DvdIcon, RefreshIcon } from 'tdesign-icons-vue-next';
 import { ref, reactive, nextTick } from 'vue';
-import Player from 'xgplayer';
 
 import { fetchSettingDetail } from '@/api/setting';
 import { prefix } from '@/config/global';
@@ -90,7 +89,10 @@ const fetchDataAndSetPlayerConfig = async () => {
   }
 };
 
-const initializePlayer = () => {
+const initializePlayer = async () => {
+  // 抽屉是"随性看"，绝大多数会话不会打开。静态引入 xgplayer 会把整个播放器连同它的
+  // 协议插件压进首屏包，这里改成点开时才下载。
+  const { default: Player } = await import('xgplayer');
   player.value = new Player(config.value);
 };
 
@@ -100,7 +102,7 @@ const toggleDrawerAndHandlePlayer = async () => {
     isVisible.drawer = true;
     // 等抽屉内容挂载后再初始化，否则 xgplayer 可能找不到 #mse 节点
     await nextTick();
-    initializePlayer();
+    await initializePlayer();
   } else {
     close();
     isVisible.drawer = false;
