@@ -30,13 +30,19 @@ fixPath();
 logger.info(`[env] path:${process.env.PATH}`);
 logger.info(`[chrome] version:${process.versions.chrome}`);
 
-process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'; // 关闭安全警告
+// ===== 安全相关开关（勿轻易删除，详见 docs/security-debt-assessment.md）=====
+// 这些开关服务于「渲染进程直连第三方视频源」，是解析播放功能的硬依赖。
+// 主进程 server/routes 里的 fetch/axios 走 Node 侧网络，不受这些开关影响。
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'; // 关闭安全警告（仅隐藏告警，不改变行为）
 app.commandLine.appendSwitch(
   'disable-features',
   'OutOfBlinkCors, BlockInsecurePrivateNetworkRequests, OutOfProcessPdf, IsolateOrigins, site-per-process',
-); // 禁用
-app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport'); // 启用
-app.commandLine.appendSwitch('ignore-certificate-errors'); // 忽略证书错误
+); // 禁用一批 Chromium 隔离特性，降低跨域/私网请求限制
+app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport'); // 启用 HEVC 硬件解码
+// 忽略证书错误：第三方视频源大量是 http 明文或自签名/过期证书，开启校验会导致解析/播放大面积失败
+app.commandLine.appendSwitch('ignore-certificate-errors');
+// 关闭同源策略：drpy 解析(syncFetch)、iframe 嗅探/播放、webview 解析页均跨域读第三方源，
+// 删除会导致 drpy 解析、嗅探、iframe 播放失效。注意：此开关会全局覆盖 winManger.ts 里的 webSecurity:true。
 app.commandLine.appendSwitch('disable-web-security');
 
 renoteInitialize(); // 主进程初始化
