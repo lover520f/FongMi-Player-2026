@@ -14,6 +14,8 @@ export default {
     actors: '演职员',
     director: '导演',
     actor: '主演',
+    expand: '展开',
+    collapse: '收起',
   },
   iptv: {
     epg: '节目',

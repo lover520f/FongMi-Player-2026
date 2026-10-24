@@ -547,6 +547,17 @@ const formatContent = (item: string | undefined | null): string => {
   return sanitizeHtml(String(item));
 };
 
+// 格式化评分。各源给的分数字段很脏：缺字段、0、'0.0'、'9.1分' 都有，
+// 直接渲染会把「没有评分」显示成刺眼的 0.0，所以统一收成空串，由调用方决定显不显示
+const formatScore = (score: unknown): string => {
+  if (typeof score !== 'string' && typeof score !== 'number') return '';
+  const text = String(score).trim();
+  if (!text) return '';
+  const num = Number(text);
+  if (Number.isFinite(num)) return num > 0 ? num.toFixed(1) : '';
+  return text;
+};
+
 // 获取播放源及剧集
 const formatSeason = (videoList: Record<string, any>): Record<string, any> => {
   console.log('[film_common][formatSeason][start]剧集格式化流程开启');
@@ -638,6 +649,7 @@ export {
   formatName,
   formatIndex,
   formatContent,
+  formatScore,
   formatSeason,
   formatReverseOrder,
 };

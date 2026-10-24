@@ -235,11 +235,11 @@
                 </div>
               </div>
               <div class="hot-block nowrap">
-                <span class="rate">
+                <span v-show="scoreText" class="rate">
                   <star-icon />
-                  {{ info["vod_score"] ? info["vod_score"] : '0.0' }}
+                  {{ scoreText }}
                 </span>
-                <t-divider layout="vertical" v-show='info["type_name"]' />
+                <t-divider layout="vertical" v-show="scoreText && info['type_name']" />
                 <span v-show='info["type_name"]' class="nowrap">{{ info["type_name"] }}</span>
                 <t-divider layout="vertical" v-show='info["vod_area"]' />
                 <span v-show='info["vod_area"]' class="nowrap">{{ info["vod_area"] }}</span>
@@ -489,6 +489,7 @@ import {
   formatName,
   formatIndex,
   formatContent,
+  formatScore,
   formatSeason,
   formatReverseOrder
 } from '@/utils/common/film';
@@ -534,6 +535,8 @@ const snifferAnalyze = computed(() => {
 });
 const info = ref(data.value.info) as any;
 const ext = ref(data.value.ext) as any;
+// 没有评分时整块（星星 + 数字）都不显示，而不是摆一个 0.0
+const scoreText = computed(() => formatScore(info.value?.vod_score));
 
 const downloadDialogData = ref({ season: '', current: '' });
 

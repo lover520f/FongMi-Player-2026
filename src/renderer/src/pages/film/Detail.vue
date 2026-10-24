@@ -7,7 +7,7 @@
             <div class="detail-info">
               <div class="title">
                 <div v-show="info.vod_name" class="name">{{ info.vod_name }}</div>
-                <div class="rate">· {{ info.vod_score ? info.vod_score : '0.0' }}</div>
+                <div v-show="scoreText" class="rate">{{ `· ${scoreText}` }}</div>
               </div>
               <div class="desc">
                 <div class="tag-items">
@@ -39,22 +39,32 @@
                 fit="cover"
               />
             </div>
-            <div class="content-wrap">
-              <div class="introduce-items">
-                <div v-show="info.vod_director" class="director introduce-item">
-                  <span class="title">{{ $t('pages.player.film.director') }}: </span>
-                  <div class="info">{{ info.vod_director }}</div>
-                </div>
-                <div v-show="info.vod_actor" class="actor introduce-item">
-                  <span class="title">{{ $t('pages.player.film.actor') }}: </span>
-                  <div class="info">{{ info.vod_actor }}</div>
-                </div>
-                <div v-show="info.vod_content" class="des introduce-item">
-                  <span class="title">{{ $t('pages.player.film.desc') }}: </span>
-                  <div class="info">
-                    <span v-html="formatContent(info.vod_content)"></span>
+            <div class="info-col" :class="{ 'is-expanded': isVisible.expandDesc }">
+              <div ref="descRef" class="content-wrap">
+                <div class="introduce-items">
+                  <div v-show="info.vod_director" class="director introduce-item">
+                    <span class="title">{{ $t('pages.player.film.director') }}: </span>
+                    <div class="info">{{ info.vod_director }}</div>
+                  </div>
+                  <div v-show="info.vod_actor" class="actor introduce-item">
+                    <span class="title">{{ $t('pages.player.film.actor') }}: </span>
+                    <div class="info">{{ info.vod_actor }}</div>
+                  </div>
+                  <div v-show="info.vod_content" class="des introduce-item">
+                    <span class="title">{{ $t('pages.player.film.desc') }}: </span>
+                    <div class="info">
+                      <span v-html="formatContent(info.vod_content)"></span>
+                    </div>
                   </div>
                 </div>
+              </div>
+              <!-- 简介长到装不下时才给展开入口，短简介不该多一行按钮 -->
+              <div v-if="descOverflow" class="desc-more" @click="toggleDescEvent">
+                <span>
+                  {{ isVisible.expandDesc ? $t('pages.player.film.collapse') : $t('pages.player.film.expand') }}
+                </span>
+                <chevron-up-icon v-if="isVisible.expandDesc" size="16" />
+                <chevron-down-icon v-else size="16" />
               </div>
             </div>
           </div>
@@ -161,13 +171,14 @@ import _ from 'lodash';
 import moment from 'moment';
 import {
   ChevronDownIcon,
+  ChevronUpIcon,
   HeartIcon,
   HeartFilledIcon,
   OrderAscendingIcon,
   OrderDescendingIcon,
 } from 'tdesign-icons-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
-import { ref, reactive, watch, computed } from 'vue';
+import { ref, reactive, watch, computed, nextTick, onBeforeUnmount } from 'vue';
 
 import { usePlayStore } from '@/store';
 import { t } from '@/locales';
@@ -183,6 +194,7 @@ import {
   formatName,
   formatIndex,
   formatContent,
+  formatScore,
   formatSeason,
   formatReverseOrder,
 } from '@/utils/common/film';
@@ -226,7 +238,35 @@ const isVisible = reactive({
   binge: false,
   reverseOrder: true,
   official: false,
+  expandDesc: false,
 });
+
+// 没有评分时不要摆一个 0.0 出来
+const scoreText = computed(() => formatScore(info.value?.vod_score));
+
+// 简介超过折叠高度才给「展开」，阈值和样式里的 max-height 保持一致
+const DESC_COLLAPSED_HEIGHT = 150;
+const descOverflow = ref(false);
+const descRef = ref<HTMLElement | null>(null);
+
+const measureDesc = (): void => {
+  const el = descRef.value?.querySelector('.introduce-items') as HTMLElement | null;
+  // 量内容自然高度，而不是量滚动容器的 clientHeight：展开后容器会变高，
+  // 用它判断会让「收起」按钮在展开状态下凭空消失
+  descOverflow.value = !!el && el.scrollHeight > DESC_COLLAPSED_HEIGHT + 2;
+};
+
+const scheduleMeasureDesc = (): void => {
+  nextTick(() => requestAnimationFrame(measureDesc));
+};
+
+const toggleDescEvent = (): void => {
+  isVisible.expandDesc = !isVisible.expandDesc;
+};
+
+// 弹窗宽度是百分比，窗口一缩文本重排，能不能装下会变
+const onWindowResize = (): void => scheduleMeasureDesc();
+onBeforeUnmount(() => window.removeEventListener('resize', onWindowResize));
 
 const active = reactive({
   flimSource: '',
@@ -260,6 +300,8 @@ const resetStates = () => {
   active.flimSource = active.filmIndex = active.analyzeId = '';
   isVisible.official = isVisible.binge = false;
   isVisible.reverseOrder = true;
+  isVisible.expandDesc = false;
+  descOverflow.value = false;
   season.value = [];
   dataHistory.value = dataBinge.value = dataAnalyze.value = {};
 };
@@ -269,8 +311,14 @@ watch(
   (val) => {
     emit('update:visible', val);
 
-    if (val) loadData();
-    else resetStates();
+    if (val) {
+      loadData();
+      window.addEventListener('resize', onWindowResize);
+      scheduleMeasureDesc();
+    } else {
+      window.removeEventListener('resize', onWindowResize);
+      resetStates();
+    }
   },
 );
 watch(
@@ -285,6 +333,7 @@ watch(
     info.value = val;
 
     getDetailInfo();
+    scheduleMeasureDesc();
   },
 );
 watch(
@@ -572,10 +621,29 @@ const getDetailInfo = async (): Promise<void> => {
         border-radius: 8px;
       }
 
+      .info-col {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-width: 0;
+      }
+
       .content-wrap {
-        height: 150px;
+        // 折叠时和海报一样高；内容不足时不要留一条永远在的空滚动条
+        max-height: 150px;
         overflow-x: hidden;
-        overflow-y: scroll;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+
+        &::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+          border-radius: 3px;
+          background-color: var(--td-scrollbar-color, rgba(0, 0, 0, 0.18));
+        }
 
         .introduce-items {
           overflow: hidden;
@@ -596,6 +664,27 @@ const getDetailInfo = async (): Promise<void> => {
               cursor: default;
             }
           }
+        }
+      }
+
+      // 展开时限个高，别把底下的选集整个顶出弹窗
+      .info-col.is-expanded .content-wrap {
+        max-height: ~'min(40vh, 360px)';
+      }
+
+      .desc-more {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        align-self: flex-end;
+        margin-top: 2px;
+        color: var(--td-brand-color);
+        font-size: 12px;
+        line-height: 18px;
+        cursor: pointer;
+
+        &:hover {
+          text-decoration: underline;
         }
       }
     }

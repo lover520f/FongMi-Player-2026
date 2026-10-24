@@ -14,6 +14,8 @@ export default {
     actors: 'ActingStaff',
     director: 'Director',
     actor: 'Actor',
+    expand: 'More',
+    collapse: 'Less',
   },
   iptv: {
     epg: 'EPG',
