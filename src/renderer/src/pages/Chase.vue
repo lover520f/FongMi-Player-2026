@@ -3,11 +3,12 @@
     <common-nav :title="$t('pages.chase.name')" :list="chaseNav" :active="active.nav" @change-key="changeChaseEvent" />
     <div class="content">
       <div class="container">
-        <transition name="fade" mode="out-in">
-          <keep-alive>
-            <component :is="componentMap[active.nav]" class="content-wrapper"></component>
-          </keep-alive>
-        </transition>
+        <!-- 去掉 transition name="fade" mode="out-in"：本组件 scoped 样式里没有定义 .fade-*，
+             这个 transition 实际没有任何淡入淡出动画；而 mode="out-in" 会让 keep-alive 切换
+             tab 时「旧组件先卸载、新组件再挂载」，中间必然出现约 2 帧（~40ms）的空白。 -->
+        <keep-alive>
+          <component :is="componentMap[active.nav]" class="content-wrapper"></component>
+        </keep-alive>
       </div>
     </div>
   </div>
