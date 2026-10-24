@@ -49,15 +49,19 @@
           </div>
         </div>
         <div id="back-top" class="content-wrapper">
-          <t-row :gutter="[16, 16]" style="margin: 0">
+          <!-- 还没有任何结果可比对时用骨架占位，别把等待变成一片空白 -->
+          <t-row v-if="listSkeleton" :gutter="[16, 16]" style="margin: 0">
+            <skeleton-grid :count="12" aspect="139.9%" />
+          </t-row>
+          <t-row v-else :gutter="[16, 16]" style="margin: 0">
             <t-col
-              v-for="item in filmData.list"
+              v-for="item in displayList"
               :key="item.vod_id"
               :md="3"
               :lg="3"
               :xl="2"
               :xxl="1"
-              class="card"
+              :class="['card', { 'card-stale': listStale }]"
               @click="playEvent(item)"
             >
               <div class="card-main">
@@ -136,7 +140,7 @@ import PQueue from 'p-queue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { RootListIcon } from 'tdesign-icons-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { computed, onActivated, onUnmounted, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onUnmounted, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { prefix } from '@/config/global';
@@ -159,6 +163,7 @@ import {
 import DetailView from './film/Detail.vue';
 import FolderView from './film/DialogFolder.vue';
 import CommonNav from '../components/common-nav/index.vue';
+import SkeletonGrid from '../components/skeleton-grid/index.vue';
 import StateView from '../components/state-view/index.vue';
 import TagNav from '../components/tag-nav/index.vue';
 
@@ -233,11 +238,16 @@ const goSiteSetting = () => {
 const retryLoad = async () => {
   pageState.value = '';
   isVisible.infiniteLoading = false;
+  beginListWait();
   filmData.value = { list: [], rawList: [] };
   listGen.value++;
   pagination.value.pageIndex = 1;
   await getSetting();
+  // 这里 infinite-loading 是「重新挂载」（错误态下 v-if 为假），它自己会触发首屏，
+  // 不能再用旧实例的 $state 主动拉，否则会与新实例的请求撞页
   if (!pageState.value) infiniteId.value++;
+  // 又退回错误/空态时不会有新列表到达，占位要跟着撤掉
+  else endListWait();
 };
 
 // per-site cache: switch source without full refetch
@@ -307,6 +317,70 @@ const classConfig = ref({
   data: [{ type_id: 0, type_name: '最新' }],
 }) as any;
 
+// 切分类/筛选/换源时数据层会把 list 清空等新一页，直接照着渲染就是一次白屏。
+// 这里把「数据」和「显示」拆开：新请求在途时先留着上一批卡片并压暗，
+// 新数据一到再整体换掉；手上没有上一批（首次进入）才退回骨架占位。
+// 上一批卡片的快照：只用于「新结果到达前先垫着」，字段不需要精确建模
+type FilmCardItem = { vod_id?: string | number } & Record<string, unknown>;
+const lastList = ref<FilmCardItem[]>([]);
+const listPending = ref(false);
+let listWaitTimer: ReturnType<typeof setTimeout> | null = null;
+
+const displayList = computed(() => (listPending.value && lastList.value.length ? lastList.value : filmData.value.list));
+// 压暗中的是上一批结果：不可点，避免点进已经不属于当前分类的条目
+const listStale = computed(() => listPending.value && lastList.value.length > 0 && filmData.value.list.length === 0);
+const listSkeleton = computed(() => listPending.value && displayList.value.length === 0);
+
+const beginListWait = () => {
+  listPending.value = true;
+  if (listWaitTimer) clearTimeout(listWaitTimer);
+  // 兜底：源站挂住不回时，别让压暗的旧列表一直僵在那里
+  listWaitTimer = setTimeout(() => {
+    listPending.value = false;
+    listWaitTimer = null;
+  }, 10000);
+};
+
+const endListWait = () => {
+  if (listWaitTimer) {
+    clearTimeout(listWaitTimer);
+    listWaitTimer = null;
+  }
+  listPending.value = false;
+};
+
+// infinite-loading 只在「哨兵进入视口」时才触发；这里把旧卡片留着垫底之后，
+// 哨兵被顶到视口外，切分类不会再自己触发请求（实测一次都没发）。
+// 所以首屏改成显式拉取：复用最近一次观察者交过来的 $state，状态栏才能照常更新。
+let infiniteState: { complete: () => void; loaded: () => void; error: () => void } | null = null;
+let firstPageLoading = false;
+
+const reloadList = async () => {
+  if (!infiniteState) {
+    // 观察者还没跑过（页面刚挂载）：交给组件自己的首次触发
+    pagination.value.pageIndex = 1;
+    return;
+  }
+  firstPageLoading = true;
+  pagination.value.pageIndex = 1;
+  try {
+    await load(infiniteState, true);
+  } finally {
+    firstPageLoading = false;
+  }
+};
+
+// 新一批结果落地（含客户端筛选后的列表）就记成快照，供下一次切换时垫底
+watch(
+  () => filmData.value.list,
+  (list) => {
+    if (list?.length) {
+      lastList.value = list;
+      endListWait();
+    }
+  },
+);
+
 onMounted(() => {
   getSetting();
 });
@@ -324,6 +398,7 @@ onActivated(registerBus);
 onUnmounted(() => {
   emitter.off('refreshFilmConfig', refreshConfig);
   emitter.off('searchFilm', onSearchFilm);
+  if (listWaitTimer) clearTimeout(listWaitTimer);
 });
 
 // cms筛选：基于已有数据
@@ -372,6 +447,7 @@ const filterApiEvent = async () => {
   filter.value.format = buildFilterFormat();
 
   listGen.value++;
+  beginListWait();
   filmData.value.list = [];
   filmData.value.rawList = [];
   infiniteId.value++;
@@ -386,7 +462,10 @@ const changeFilterEvent = (key, item) => {
   const { type } = siteConfig.value.default;
 
   if (type === 1 || type === 0) filterEvent();
-  else filterApiEvent();
+  else {
+    filterApiEvent();
+    void reloadList();
+  }
 };
 
 const searchGroup = (type: string) => {
@@ -584,6 +663,7 @@ const changeClassEvent = (key) => {
   listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
+  void reloadList();
 };
 
 // 获取资源
@@ -632,8 +712,16 @@ const getFilmList = async () => {
 };
 
 // 加载
-const load = async ($state: { complete: () => void; loaded: () => void; error: () => void }) => {
+const load = async (
+  $state: { complete: () => void; loaded: () => void; error: () => void },
+  explicit = false,
+) => {
+  infiniteState = $state;
+  // 显式首屏请求在途时，观察者若因布局变化再次触发同一页就忽略，避免重复请求
+  if (!explicit && firstPageLoading && pagination.value.pageIndex <= 1) return;
   console.log('[film] loading...');
+  // 第一页即整页首屏：数据到达前先摆骨架，别让容器空着（后续分页不再重置占位）
+  if (pagination.value.pageIndex <= 1) beginListWait();
   try {
     if (_.isEmpty(active.value.nav)) {
       infiniteCompleteTip.value = t('pages.film.infiniteLoading.noData');
@@ -697,6 +785,9 @@ const load = async ($state: { complete: () => void; loaded: () => void; error: (
   } catch (err) {
     console.error(err);
     $state.error();
+  } finally {
+    // 第一页（或切分类后的第一页）一落地就收起占位；后续分页调用重复置 false 无副作用
+    endListWait();
   }
 };
 
@@ -704,12 +795,14 @@ const load = async ($state: { complete: () => void; loaded: () => void; error: (
 const searchEvent = async () => {
   console.log(`[film] search keyword:${searchTxt.value}`);
   infiniteCompleteTip.value = t('pages.film.infiniteLoading.noMore');
+  beginListWait();
   filmData.value.list = [];
   filmData.value.rawList = [];
   listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
   searchCurrentSite.value = siteConfig.value.searchGroup ? siteConfig.value.searchGroup[0] : null;
+  void reloadList();
 };
 
 // 搜索加载数据
@@ -816,6 +909,7 @@ const changeSitesEvent = async (key: string) => {
   const res = _.find(siteConfig.value.data, { id: key });
   active.value.nav = key;
   siteConfig.value.default = res;
+  beginListWait();
   filmData.value = { list: [], rawList: [] };
   filter.value = {
     data: [],
@@ -841,6 +935,9 @@ const changeSitesEvent = async (key: string) => {
     console.log(`[film] site cache miss: ${key}`);
   }
   infiniteId.value++;
+  // 命中缓存时列表已经就位，直接显式重拉会把第一页叠在缓存后面；
+  // 只有空列表才需要主动拉首屏（否则压暗的旧卡片会把哨兵顶出视口）
+  if (!hit) void reloadList();
   siteConfig.value.searchGroup = await searchGroup(siteConfig.value.search);
 };
 
@@ -964,6 +1061,9 @@ const refreshConfig = async () => {
   searchTxt.value = '';
   await getSetting();
   classConfig.value.data = [{ type_id: 0, type_name: '最新' }];
+  // 源配置变了，上一批卡片不属于新配置，不能再垫底显示
+  lastList.value = [];
+  beginListWait();
   filmData.value = { list: [], rawList: [] };
   filter.value = {
     data: [],
@@ -979,6 +1079,8 @@ const refreshConfig = async () => {
   listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
+  // 配置请求失败会落到整页状态，此时不会再触发列表请求
+  if (pageState.value) endListWait();
 };
 </script>
 
@@ -1257,6 +1359,15 @@ const refreshConfig = async () => {
             .card-footer-title {
               color: var(--td-brand-color);
             }
+          }
+
+          // 切分类后新结果还没回来：压暗上一批并挡住点击，
+          // 比把网格整个清空再重画少一次视觉断裂
+          &-stale {
+            opacity: 0.4;
+            filter: saturate(0.6);
+            pointer-events: none;
+            transition: opacity 0.2s ease;
           }
         }
       }

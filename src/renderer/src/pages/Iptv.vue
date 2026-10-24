@@ -20,28 +20,33 @@
       <div v-if="!pageState" class="container">
         <div class="content-wrapper" id="back-top">
           <t-row :gutter="[16, 16]" style="margin: 0;">
-            <t-col :md="3" :lg="3" :xl="2" :xxl="1" v-for="item in channelData.list" :key="item.id" class="card"
-              @click="playEvent(item)" @contextmenu="conButtonClick(item, $event)">
-              <div class="card-main">
-                <div v-show="iptvConfig.ext.status" class="card-tag">
-                  <span v-if="item.status && item.status < 500" class="status-item success">{{ item.status }}ms</span>
-                  <span v-else class="status-item error">{{ item.status ? `${item.status}ms` : $t('pages.iptv.delay')
-                    }}</span>
+            <!-- 首屏/切分类时的占位：和影视页同一套骨架，只是封面比例不同 -->
+            <skeleton-grid v-if="listSkeleton" :count="12" aspect="62%" />
+            <template v-else>
+              <t-col :md="3" :lg="3" :xl="2" :xxl="1" v-for="item in displayList" :key="item.id"
+                :class="['card', { 'card-stale': listStale }]" @click="playEvent(item)"
+                @contextmenu="conButtonClick(item, $event)">
+                <div class="card-main">
+                  <div v-show="iptvConfig.ext.status" class="card-tag">
+                    <span v-if="item.status && item.status < 500" class="status-item success">{{ item.status }}ms</span>
+                    <span v-else class="status-item error">{{ item.status ? `${item.status}ms` : $t('pages.iptv.delay')
+                      }}</span>
+                  </div>
+                  <t-image class="card-main-item" :src="iptvConfig.ext.thumbnail ? item.thumbnail : generateLogo(item)"
+                    :style="{
+                      width: '100%',
+                      background: 'none',
+                      overflow: 'hidden',
+                      padding: iptvConfig.ext.thumbnail
+                        ? 'none'
+                        : '35px 30px'
+                    }" :lazy="true" :loading="renderImageLoading" :error="renderImageError" />
                 </div>
-                <t-image class="card-main-item" :src="iptvConfig.ext.thumbnail ? item.thumbnail : generateLogo(item)"
-                  :style="{
-                    width: '100%',
-                    background: 'none',
-                    overflow: 'hidden',
-                    padding: iptvConfig.ext.thumbnail
-                      ? 'none'
-                      : '35px 30px'
-                  }" :lazy="true" :loading="renderImageLoading" :error="renderImageError" />
-              </div>
-              <div class="card-footer">
-                <span class="card-footer-title text-hide">{{ item.name }}</span>
-              </div>
-            </t-col>
+                <div class="card-footer">
+                  <span class="card-footer-title text-hide">{{ item.name }}</span>
+                </div>
+              </t-col>
+            </template>
 
             <context-menu :show="isVisible.contentMenu" :options="optionsComponent"
               @close="isVisible.contentMenu = false">
@@ -72,7 +77,7 @@ import _ from 'lodash';
 import PQueue from 'p-queue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import InfiniteLoading from 'v3-infinite-loading';
-import { computed, onActivated, onMounted, ref, reactive } from 'vue';
+import { computed, onActivated, onMounted, onUnmounted, ref, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { prefix } from '@/config/global';
@@ -87,6 +92,7 @@ import emitter from '@/utils/emitter';
 import { checkUrlIpv6, copyToClipboardApi } from '@/utils/tool';
 
 import CommonNav from '../components/common-nav/index.vue';
+import SkeletonGrid from '../components/skeleton-grid/index.vue';
 import StateView from '../components/state-view/index.vue';
 import TagNav from '../components/tag-nav/index.vue';
 
@@ -119,10 +125,15 @@ const goIptvSetting = () => {
 const retryLoad = async () => {
   pageState.value = '';
   isVisible.infiniteLoading = false;
+  beginListWait();
+  // 在途的旧请求作废
+  channelGen++;
   channelData.value = { list: [], total: 0 };
   pagination.value.pageIndex = 0;
   await getSetting();
   if (!pageState.value) infiniteId.value++;
+  // 又退回错误/空态时不会有新列表到达，占位要跟着撤掉
+  else endListWait();
 };
 const searchTxt = ref('');
 const infiniteId = ref(+new Date());
@@ -156,6 +167,66 @@ const channelData = ref<any>({
   total: 0,
 })
 
+// 切分类/换源时数据层会把 list 清空再重拉，照着渲染就是一次白屏。
+// 新请求在途时先留着上一批频道并压暗，等新数据到达再整体换掉；
+// 手上没有上一批（首次进入）才退回骨架占位。
+type ChannelCardItem = { id?: string | number } & Record<string, unknown>;
+const lastList = ref<ChannelCardItem[]>([]);
+const listPending = ref(false);
+let listWaitTimer: ReturnType<typeof setTimeout> | null = null;
+
+const displayList = computed(() => (listPending.value && lastList.value.length ? lastList.value : channelData.value.list));
+// 压暗的是上一批结果：不可点，避免点开已经不在当前分类里的频道
+const listStale = computed(() => listPending.value && lastList.value.length > 0 && channelData.value.list.length === 0);
+const listSkeleton = computed(() => listPending.value && displayList.value.length === 0);
+
+const beginListWait = () => {
+  listPending.value = true;
+  if (listWaitTimer) clearTimeout(listWaitTimer);
+  // 兜底：源站挂住不回时，别让压暗的旧列表一直僵在那里
+  listWaitTimer = setTimeout(() => {
+    listPending.value = false;
+    listWaitTimer = null;
+  }, 10000);
+};
+
+const endListWait = () => {
+  if (listWaitTimer) {
+    clearTimeout(listWaitTimer);
+    listWaitTimer = null;
+  }
+  listPending.value = false;
+};
+
+// infinite-loading 只在「哨兵进入视口」时才触发；旧频道垫底后哨兵被顶到视口外，
+// 切分类就不会再自己发请求。首屏改为显式拉取，复用观察者交过来的 $state。
+let infiniteState: { complete: () => void; loaded: () => void; error: () => void } | null = null;
+let firstPageLoading = false;
+
+const reloadList = async () => {
+  if (!infiniteState) {
+    pagination.value.pageIndex = 0;
+    return;
+  }
+  firstPageLoading = true;
+  pagination.value.pageIndex = 0;
+  try {
+    await load(infiniteState, true);
+  } finally {
+    firstPageLoading = false;
+  }
+};
+
+watch(
+  () => channelData.value.list,
+  (list) => {
+    if (list?.length) {
+      lastList.value = list;
+      endListWait();
+    }
+  },
+);
+
 const classConfig = ref({
   data: [{ type_id: '全部', type_name: '全部' }]
 })
@@ -183,6 +254,10 @@ onMounted(() => {
 onActivated(() => {
   const isListenedRefreshIptvConfig = emitter.all.get('refreshIptvConfig');
   if (!isListenedRefreshIptvConfig) emitter.on('refreshIptvConfig', refreshIptvConfig);
+});
+
+onUnmounted(() => {
+  if (listWaitTimer) clearTimeout(listWaitTimer);
 });
 
 // 获取配置
@@ -218,13 +293,22 @@ const getSetting = async () => {
 };
 
 // 获取直播列表
+// 频道请求代次：切分类/换源/搜索后递增，过期响应直接丢弃
+let channelGen = 0;
+
 const getChannel = async () => {
   const { pageIndex, pageSize } = pagination.value;
   const { skipIpv6, status, thumbnail } = iptvConfig.value.ext;
   const { list } = channelData.value;
+  const gen = channelGen;
 
   const res = await fetchChannelList(pageIndex, pageSize, searchTxt.value, active.value.class);
-  pagination.value.count = res["total"];
+  // 期间又切了分类：这一页属于上一批，不能再并进列表
+  if (gen !== channelGen) {
+    console.log('[iptv] stale channel response dropped');
+    return 0;
+  }
+  pagination.value.count = res['total'];
   classConfig.value.data = res["class"];
 
   const sourceLength = res.data.length;
@@ -254,8 +338,16 @@ const getChannel = async () => {
   return length;
 };
 
-const load = async ($state: { complete: () => void; loaded: () => void; error: () => void }) => {
+const load = async (
+  $state: { complete: () => void; loaded: () => void; error: () => void },
+  explicit = false,
+) => {
+  infiniteState = $state;
+  // 显式首屏请求在途时，观察者若因布局变化再次触发同一页就忽略
+  if (!explicit && firstPageLoading && pagination.value.pageIndex <= 1) return;
   console.log('[iptv] loading...');
+  // 第一页即整页首屏：数据到达前先摆骨架，别让容器空着（后续分页不再重置占位）
+  if (pagination.value.pageIndex <= 1) beginListWait();
   try {
     const resLength = await getChannel();
 
@@ -271,15 +363,21 @@ const load = async ($state: { complete: () => void; loaded: () => void; error: (
   } catch (err) {
     console.log(err);
     $state.error();
+  } finally {
+    // 第一批频道一落地就收起占位；后续分页调用重复置 false 无副作用
+    endListWait();
   }
 };
 
 // 搜索
 const searchEvent = async () => {
   console.log(`[iptv] search keyword: ${searchTxt.value}`);
+  beginListWait();
+  channelGen++;
   channelData.value = { list: [], total: 0 };
   infiniteId.value++;
   pagination.value.pageIndex = 0;
+  void reloadList();
 };
 
 // 切换分类
@@ -288,9 +386,12 @@ const changeClassEvent = async (id) => {
   infiniteCompleteTip.value = 'noMore';
   active.value.class = id;
 
+  beginListWait();
+  channelGen++;
   channelData.value = { list: [], total: 0 };
   infiniteId.value++;
   pagination.value.pageIndex = 0;
+  void reloadList();
 };
 
 // 播放
@@ -429,12 +530,15 @@ const changeDefaultIptvEvent = async (id: string) => {
     active.value.nav = id;
     active.value.class = '全部';
     classConfig.value.data = [{ type_id: '全部', type_name: '全部' }];
+    beginListWait();
+    channelGen++;
     channelData.value = { list: [], total: 0 };
     infiniteCompleteTip.value = 'noMore';
     isVisible.infiniteLoading = true;
     infiniteId.value++;
     pagination.value.pageIndex = 0;
     MessagePlugin.success(t('pages.iptv.message.setSuccess'));
+    void reloadList();
   } catch (err) {
     console.error('[iptv][changeSource][error]', err);
     const msg = err instanceof Error ? err.message : String(err);
@@ -457,10 +561,16 @@ const refreshIptvConfig = async () => {
   classConfig.value.data = [{ type_id: '全部', type_name: '全部' }];
   active.value.class = '全部';
   active.value.nav = '';
+  // 配置变了，旧频道不属于新配置，不能再垫底显示
+  lastList.value = [];
+  beginListWait();
+  // 在途的旧请求作废
+  channelGen++;
   channelData.value = { list: [], total: 0 };
   await getSetting();
   infiniteId.value++;
   pagination.value.pageIndex = 0;
+  if (pageState.value) endListWait();
 };
 
 // 右键
@@ -658,6 +768,15 @@ const generateLogo = (item) => {
           .card-footer-title {
             color: var(--td-brand-color);
           }
+        }
+
+        // 切分类后新结果还没回来：压暗上一批并挡住点击，
+        // 比把网格整个清空再重画少一次视觉断裂
+        .card-stale {
+          opacity: 0.4;
+          filter: saturate(0.6);
+          pointer-events: none;
+          transition: opacity 0.2s ease;
         }
       }
     }
