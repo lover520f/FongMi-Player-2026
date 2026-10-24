@@ -787,19 +787,11 @@ const load = async (
     if (searchTxt.value) {
       resLength = await getSearchList();
     } else if (!isVisible.loadClass) {
-      const seedTid = active.value.class ?? classConfig.value?.data?.[0]?.type_id ?? 0;
-      const settled = await Promise.allSettled([getClassList(defaultSite), getFilmList()]);
-      const classInfo = settled[0].status === 'fulfilled' ? settled[0].value : { classReady: false, homeList: [] };
-      resLength = settled[1].status === 'fulfilled' ? settled[1].value : 0;
-      if (
-        resLength === 0 &&
-        classInfo?.classReady &&
-        active.value.class !== seedTid &&
-        filmData.value.list.length === 0 &&
-        settled[1].status === 'fulfilled'
-      ) {
-        resLength = await getFilmList();
-      }
+      // 串行：先拿分类（会设置 active.value.class），再请求列表。之前这里用
+      // Promise.allSettled 并发，getFilmList 同步读 active.value.class 时拿到的是切源
+      // 占位的 0（而非真实分类），而很多源对 tid=0 返回空列表，导致列表空、蒙版卡住。
+      const classInfo = await getClassList(defaultSite);
+      resLength = await getFilmList();
       if (resLength === 0 && classInfo?.homeList?.length) {
         filmData.value.list = classInfo.homeList;
         filmData.value.rawList = classInfo.homeList;
