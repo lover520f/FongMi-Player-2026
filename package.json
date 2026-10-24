@@ -43,6 +43,7 @@
     "electron-updater": "^6.2.1",
     "fs-extra": "^11.2.0",
     "ip": "^2.0.1",
+    "jimp": "0.22.12",
     "puppeteer-core": "~21.3.8",
     "puppeteer-in-electron": "^3.0.5",
     "v8-compile-cache": "^2.4.0"

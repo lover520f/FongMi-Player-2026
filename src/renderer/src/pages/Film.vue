@@ -71,7 +71,7 @@
                 </div>
                 <t-image
                   class="card-main-item"
-                  :src="item.vod_pic"
+                  :src="thumb(item.vod_pic, 280)"
                   :style="{ height: '100%', background: 'none', overflow: 'hidden' }"
                   :lazy="true"
                   fit="cover"
@@ -157,6 +157,7 @@ import { usePlayStore, useSettingStore } from '@/store';
 import { fetchSiteActive } from '@/api/site';
 import emitter from '@/utils/emitter';
 import { renderImageError, renderImageLoading } from '@/utils/common/imageState';
+import { thumb } from '@/utils/common/imgThumb';
 import {
   fetchClassify,
   fetchList,

@@ -14,5 +14,24 @@ import file from './file';
 import barrge from './barrge';
 import util from './util';
 import gateway from './gateway';
+import img from './img';
 
-export { analyze, site, star, history, drive, setting, iptv, db, proxy, catbox, cache, lab, file, barrge, util, gateway };
+export {
+  analyze,
+  site,
+  star,
+  history,
+  drive,
+  setting,
+  iptv,
+  db,
+  proxy,
+  catbox,
+  cache,
+  lab,
+  file,
+  barrge,
+  util,
+  gateway,
+  img,
+};
