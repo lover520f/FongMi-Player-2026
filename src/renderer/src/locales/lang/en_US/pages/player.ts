@@ -59,6 +59,7 @@ export default {
     seek: 'Rewind / Forward {0}s',
     volume: 'Volume',
     mute: 'Mute / Unmute',
+    rate: 'Speed',
     fullscreen: 'Toggle fullscreen',
     episode: 'Previous / Next episode',
     escape: 'Close panel or exit fullscreen',

@@ -272,6 +272,40 @@ const playerMuted = async (player: unknown, playerMode: string, value?: boolean)
   return !!target.muted;
 };
 
+// 倍速阶梯：每个内核自带的档位与顺序都不一样（nplayer 出厂只有 0.25/0.5/1/1.5/2，
+// xgplayer 的插件又是另一套顺序），键盘只有先收成一把统一的梯子，才不会
+// 「同一个键在不同内核上跳的步长不一样」。nplayer 的菜单档位在 playerModule 里
+// 已经被改写成同一套，所以键盘与内核菜单看到的是同一串数字。
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+// 读写播放速率。这里**不能**复用各内核模块里的 speed()：
+// artplayer 与 xgplayer 的实现是 `once('ready')` / `once(loadeddata')` 里赋值，
+// 那是给「创建播放器时恢复上次倍速」用的；播放中途调用时事件早已过去，
+// 赋值永远不会发生（键盘按下去毫无反应）。运行时改速率只能直接落到实例上。
+type RatePlayerShape = ShortcutPlayerShape & {
+  playbackRate?: number;
+  settingNamedMap?: { speed?: { value?: number } };
+};
+
+const playerPlaybackRate = async (player: unknown, playerMode: string, value?: number) => {
+  const instance = player as RatePlayerShape | null;
+  if (!instance) return 1;
+  // dplayer 的 speed() 就是 `video.playbackRate = rate`，实例上没有该属性
+  const target = playerMode === 'dplayer' ? instance.video : instance;
+  if (!target) return 1;
+  if (typeof value === 'number') {
+    target.playbackRate = value;
+    // nplayer 的设置菜单只在自己的 change 回调里同步 value，从外部改速率要连菜单值
+    // 一起写，否则打开菜单仍停在上一次点选的档位上
+    if (playerMode === 'nplayer') {
+      const menu = instance.settingNamedMap?.speed;
+      if (menu) menu.value = value;
+    }
+  }
+  // 尚未就绪时读到的可能是 0 或 NaN，统一按 1 倍处理
+  return Number(target.playbackRate) || 1;
+};
+
 const playerTimeUpdate = async (player: any, playerMode: string, callback: any) => {
   const playerModule = await loadPlayerMethod(playerMode);
   const { onTimeUpdate } = playerModule;
@@ -314,6 +348,8 @@ export {
   playerDuration,
   playerVolume,
   playerMuted,
+  playerPlaybackRate,
+  PLAYBACK_RATES,
   playerTimeUpdate,
   playerOnError,
   offPlayerBarrage,

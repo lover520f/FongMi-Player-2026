@@ -59,6 +59,7 @@ export default {
     seek: '快退 / 快进 {0} 秒',
     volume: '音量',
     mute: '静音 / 取消静音',
+    rate: '倍速',
     fullscreen: '全屏切换',
     episode: '上一集 / 下一集',
     escape: '关闭面板或退出全屏',

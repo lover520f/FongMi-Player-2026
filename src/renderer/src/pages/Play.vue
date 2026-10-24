@@ -474,7 +474,7 @@ import { computed, onBeforeUnmount, onMounted, ref, reactive, shallowRef, watch 
 
 import { fetchChannelList } from '@/api/iptv';
 import { checkUrlIpv6, getLocalStorage } from '@/utils/tool';
-import { playerBarrage, playerCreate, playerDestroy, playerNext, playerSeek, playerPause, playerToggle, playerCurrentTime, playerDuration, playerVolume, playerMuted, playerTimeUpdate, offPlayerTimeUpdate, offPlayerBarrage, playerOnError, offPlayerError, setStreamErrorNotify } from '@/utils/common/player';
+import { playerBarrage, playerCreate, playerDestroy, playerNext, playerSeek, playerPause, playerToggle, playerCurrentTime, playerDuration, playerVolume, playerMuted, playerPlaybackRate, PLAYBACK_RATES, playerTimeUpdate, offPlayerTimeUpdate, offPlayerBarrage, playerOnError, offPlayerError, setStreamErrorNotify } from '@/utils/common/player';
 import {
   fetchBingeData,
   putBingeData,
@@ -825,14 +825,57 @@ const seekBy = async (delta: number) => {
   flashShortcut(`${delta > 0 ? '+' : '-'}${Math.abs(delta)}s  ${formatClock(target)}`);
 };
 
-const changeVolume = async (delta: number) => {
+// 长按时 keydown 每 30ms 就来一次，而每次调档都要「先读当前值、再写回」——
+// 中间有 await，同一批按键会读到同一个旧值：连按 6 下只前进 1 档。
+// 用一条串行链把调整动作排队，长按才能一档一档走满。
+const createSerialQueue = () => {
+  let chain: Promise<unknown> = Promise.resolve();
+  return (task: () => Promise<void>) => {
+    chain = chain.then(task).catch(() => {});
+    return chain;
+  };
+};
+const queueVolume = createSerialQueue();
+const queuePlaybackRate = createSerialQueue();
+
+const applyVolume = async (delta: number) => {
   if (!player.value) return;
   const mode = shortcutPlayerMode();
+  const wasMuted = await playerMuted(player.value, mode);
   const current = await playerVolume(player.value, mode);
   const next = Math.min(1, Math.max(0, Math.round((current + delta) * 100) / 100));
   await playerVolume(player.value, mode, next);
+  // 写音量会把静音状态带跑：nplayer 的 volume setter 里写死「音量 > 0 就取消静音」，
+  // dplayer 同理。往下调时用户根本不想开声音，所以写完按语义再落一次静音位：
+  // ↑ 是「我要听得见」，↓ 保持原状态，归零则静音。
+  await playerMuted(player.value, mode, delta > 0 && next > 0 ? false : wasMuted || next === 0);
   flashShortcut(`${t('pages.player.shortcut.volume')} ${Math.round(next * 100)}%`);
 };
+
+const changeVolume = (delta: number) => queueVolume(() => applyVolume(delta));
+
+// 倍速：以前只有各内核自己的下拉菜单（档位、顺序、入口位置都不同，nplayer 甚至要
+// 进二级菜单），音量却有键——同一层操作一半能用键、一半不能。这里按统一阶梯走。
+const formatRate = (rate: number) => `${Number(rate.toFixed(2))}×`;
+
+const applyPlaybackRateStep = async (step: number) => {
+  if (!player.value) return;
+  // 直播没有倍速可调，和 seekBy 一样不响应
+  if (type.value === 'iptv') return;
+  const mode = shortcutPlayerMode();
+  const current = await playerPlaybackRate(player.value, mode);
+  // 当前速率不一定在阶梯上（内核自己恢复的档位，或内核菜单给的是 3x），
+  // 先找最近的一档再走一步，避免按下后跳到离得很远的位置
+  let index = 0;
+  for (let i = 1; i < PLAYBACK_RATES.length; i++) {
+    if (Math.abs(PLAYBACK_RATES[i] - current) < Math.abs(PLAYBACK_RATES[index] - current)) index = i;
+  }
+  const next = PLAYBACK_RATES[Math.min(PLAYBACK_RATES.length - 1, Math.max(0, index + step))];
+  await playerPlaybackRate(player.value, mode, next);
+  flashShortcut(`${t('pages.player.shortcut.rate')} ${formatRate(next)}`);
+};
+
+const changePlaybackRate = (step: number) => queuePlaybackRate(() => applyPlaybackRateStep(step));
 
 const toggleMute = async () => {
   if (!player.value) return;
@@ -866,6 +909,7 @@ const shortcutRows = computed(() => [
   { keys: 'J / L', desc: t('pages.player.shortcut.seek', [SEEK_STEP_LARGE]) },
   { keys: '↑ / ↓', desc: t('pages.player.shortcut.volume') },
   { keys: 'M', desc: t('pages.player.shortcut.mute') },
+  { keys: '< / >', desc: t('pages.player.shortcut.rate') },
   { keys: 'F', desc: t('pages.player.shortcut.fullscreen') },
   { keys: '[ / ]', desc: t('pages.player.shortcut.episode') },
   { keys: 'Esc', desc: t('pages.player.shortcut.escape') },
@@ -928,6 +972,17 @@ const onShortcutKeydown = (event: KeyboardEvent) => {
     case 'm':
       event.preventDefault();
       void toggleMute();
+      return;
+    // 减速 / 加速。半角 , . 一并认下：多数人不会为改个倍速去按 Shift
+    case '<':
+    case ',':
+      event.preventDefault();
+      void changePlaybackRate(-1);
+      return;
+    case '>':
+    case '.':
+      event.preventDefault();
+      void changePlaybackRate(1);
       return;
     case 'f':
       event.preventDefault();
