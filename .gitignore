@@ -1,6 +1,7 @@
 node_modules
 dist
 out
+smoke-artifacts
 thumbnail
 .DS_Store
 *.log*

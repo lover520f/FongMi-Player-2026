@@ -1,0 +1,46 @@
+# 统一换行符：仓库内一律按 LF 存储，检出也用 LF（含 Windows）。
+# 原因是 lint 门禁按行比对 prettier，CRLF 会让每条 import 都报 "Delete ␍"，
+# 门禁被噪声淹没（本地曾因此多出 800+ 条无关 warning）。CI 与本地从此一致。
+* text=auto eol=lf
+
+# 二进制资源不参与换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.bmp binary
+*.ico binary
+*.icns binary
+*.svg text
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.mp3 binary
+*.mp4 binary
+*.m4a binary
+*.webm binary
+*.zip binary
+*.7z binary
+*.gz binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.node binary
+*.asar binary
+*.jar binary
+*.dex binary
+*.apk binary
+*.pdf binary
+
+# 安装脚本与锁文件：明确按 LF，避免 NSIS/yarn 在不同平台读到不同换行
+*.nsh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 语言统计：锁文件不计入
+yarn.lock linguist-generated=true
