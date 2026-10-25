@@ -57,7 +57,6 @@
             <t-col
               v-for="item in displayList"
               :key="filmKey(item)"
-              v-memo="[item, listStale, localeTag]"
               :md="3"
               :lg="3"
               :xl="2"
@@ -151,7 +150,7 @@ import { computed, onActivated, onUnmounted, onMounted, reactive, ref, watch } f
 import { useRouter } from 'vue-router';
 
 import { prefix } from '@/config/global';
-import { i18n, t } from '@/locales';
+import { t } from '@/locales';
 import { usePlayStore, useSettingStore } from '@/store';
 
 import { fetchSiteActive } from '@/api/site';
@@ -360,10 +359,6 @@ const listPending = ref(false);
 let listWaitTimer: ReturnType<typeof setTimeout> | null = null;
 
 const displayList = computed(() => (listPending.value && lastList.value.length ? lastList.value : filmData.value.list));
-// 卡片用 v-memo 缓存，依赖里必须显式带上语言：卡片内有走 $t 的兜底文案，切语言时
-// 不重绘就会留在旧语言。composition 模式下 i18n.global.locale 是 ref，模板里写
-// $i18n.locale 拿到的是 ref 对象本身（引用不变，依赖等于没写），所以先在这里拆开。
-const localeTag = computed(() => i18n.global.locale.value);
 // 压暗中的是上一批结果：不可点，避免点进已经不属于当前分类的条目
 const listStale = computed(() => listPending.value && lastList.value.length > 0 && filmData.value.list.length === 0);
 const listSkeleton = computed(() => listPending.value && displayList.value.length === 0);

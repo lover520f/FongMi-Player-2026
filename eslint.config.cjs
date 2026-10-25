@@ -40,6 +40,8 @@ module.exports = [
       'dist/**',
       'out/**',
       'release/**',
+      // CDP 调试探针（一次性脚本，非生产代码）
+      '.probe/**',
       '**/*.d.ts',
       'src/renderer/components.d.ts',
       'src/renderer/auto-imports.d.ts',
