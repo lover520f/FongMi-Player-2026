@@ -67,10 +67,25 @@ const sweepIfNeeded = async () => {
 // 用原生 http/https 抓二进制。不设 agent，因此不会走 HTTP_PROXY/HTTPS_PROXY
 // 环境变量——很多用户的机器上可能残留代理，走代理会导致图片抓取失败。
 // 同时做超时 + 体积上限 + 状态码校验，避免被异常源拖垮。
-const fetchBuffer = (url: string): Promise<Buffer> => {
+const MAX_REDIRECTS = 5; // 302 重定向上限，异常图床的循环重定向不能无限递归
+
+const fetchBuffer = (url: string): Promise<Buffer> => fetchBufferInner(url, 0);
+
+const fetchBufferInner = (url: string, redirects: number): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const lib = u.protocol === 'https:' ? https : http;
+
+    // 请求级与响应级共用一次 settle 判定：req.destroy() 会触发 ECONNRESET 的 error
+    // 事件，若不拦截会在已 reject（超时/体积超限）后再回调一次；Promise 虽只认
+    // 第一次，但保持语义干净，且避免误触 res.on('error') 里未定义的路径。
+    let settled = false;
+    const finish = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err);
+    };
+
     const req = lib.get(
       u,
       {
@@ -82,16 +97,20 @@ const fetchBuffer = (url: string): Promise<Buffer> => {
         },
       },
       (res) => {
-        // 跟随一次重定向（很多图床 302 到 CDN）
+        // 跟随重定向（很多图床 302 到 CDN），但设上限防止循环重定向无限递归
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume();
+          if (redirects >= MAX_REDIRECTS) {
+            finish(new Error('too many redirects'));
+            return;
+          }
           const next = new URL(res.headers.location, url).toString();
-          fetchBuffer(next).then(resolve, reject);
+          fetchBufferInner(next, redirects + 1).then(resolve, finish);
           return;
         }
         if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
           res.resume();
-          reject(new Error(`upstream ${res.statusCode}`));
+          finish(new Error(`upstream ${res.statusCode}`));
           return;
         }
         const chunks: Buffer[] = [];
@@ -99,21 +118,27 @@ const fetchBuffer = (url: string): Promise<Buffer> => {
         res.on('data', (c: Buffer) => {
           total += c.length;
           if (total > MAX_UPSTREAM_BYTES) {
+            // 体积超限：先断连接再 settle，destroy 触发的 error 会被 settled 拦截
             req.destroy();
-            reject(new Error('image too large'));
+            res.destroy();
+            finish(new Error('image too large'));
             return;
           }
           chunks.push(c);
         });
-        res.on('end', () => resolve(Buffer.concat(chunks)));
-        res.on('error', reject);
+        res.on('end', () => {
+          if (settled) return;
+          settled = true;
+          resolve(Buffer.concat(chunks));
+        });
+        res.on('error', (e) => finish(e instanceof Error ? e : new Error(String(e))));
       },
     );
     req.setTimeout(FETCH_TIMEOUT, () => {
       req.destroy();
-      reject(new Error('fetch timeout'));
+      finish(new Error('fetch timeout'));
     });
-    req.on('error', reject);
+    req.on('error', (e) => finish(e instanceof Error ? e : new Error(String(e))));
   });
 };
 
