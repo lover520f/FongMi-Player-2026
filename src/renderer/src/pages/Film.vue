@@ -410,10 +410,13 @@ const reloadList = async () => {
   }
 };
 
-// 新一批结果落地（含客户端筛选后的列表）就记成快照，供下一次切换时垫底
+// 新一批「真实网络数据」落地就记成快照，供下一次切换时垫底。
+// filterEvent 的客户端重排不在此列（clientFiltering 期间跳过），否则垫底快照
+// 会被上一次筛选的残集污染。
 watch(
   () => filmData.value.list,
   (list) => {
+    if (clientFiltering) return;
     if (list?.length) {
       lastList.value = list;
       endListWait();
@@ -441,7 +444,11 @@ onUnmounted(() => {
   if (listWaitTimer) clearTimeout(listWaitTimer);
 });
 
-// cms筛选：基于已有数据
+// cms筛选：基于已有数据（纯客户端重排，不发请求）
+// 重写 list 会触发下面的 watch，但这里是「筛选后的残集」而非「真实新数据落地」，
+// 若照样记进 lastList，切源/切分类时垫底的就会是上一次筛选的残集，还可能和
+// 恢复的筛选条件对不上。用 clientFiltering 标志让 watch 跳过这种重写。
+let clientFiltering = false;
 const filterEvent = () => {
   const { rawList } = filmData.value;
   const { area, year, sort } = active.value.filter;
@@ -460,7 +467,9 @@ const filterEvent = () => {
       }
     });
 
+  clientFiltering = true;
   filmData.value.list = filteredData;
+  clientFiltering = false;
 };
 
 // 按站点类型构造筛选参数（恢复缓存与筛选切换共用）
