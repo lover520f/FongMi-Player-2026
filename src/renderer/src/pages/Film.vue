@@ -848,6 +848,10 @@ const searchEvent = async () => {
   beginListWait();
   filmData.value.list = [];
   filmData.value.rawList = [];
+  // 搜索是一次全新查询，必须同时丢掉上一屏的快照。
+  // displayList 会在 listPending 期间回落到 lastList，若不清空，结果到达前用户看到的
+  // 仍是切走前的旧卡片（首页列表），表现为「搜了没反应 / 搜不出来内容」。
+  lastList.value = [];
   listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
