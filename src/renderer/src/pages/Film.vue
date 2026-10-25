@@ -259,9 +259,12 @@ const retryLoad = async () => {
 
 // per-site cache: switch source without full refetch
 const siteViewCache = new Map<string, any>();
-
+// 视图缓存存的是整份列表快照(含 rawList, 可能几百条), 无界增长是隐性内存风险。
+// 这里做成简单 LRU: 超过上限时淘汰最久未用的源(delete 后重新 set 即回到最新)。
+const SITE_VIEW_CACHE_MAX = 10;
 const saveSiteCache = (siteId: string) => {
   if (!siteId) return;
+  if (siteViewCache.has(siteId)) siteViewCache.delete(siteId);
   siteViewCache.set(siteId, {
     classData: JSON.parse(JSON.stringify(classConfig.value.data || [])),
     filters: JSON.parse(JSON.stringify(filter.value?.data || [])),
@@ -272,6 +275,11 @@ const saveSiteCache = (siteId: string) => {
     activeFilter: JSON.parse(JSON.stringify(active.value.filter || {})),
     loadClass: isVisible.loadClass,
   });
+  while (siteViewCache.size > SITE_VIEW_CACHE_MAX) {
+    const oldest = siteViewCache.keys().next().value;
+    if (oldest === undefined) break;
+    siteViewCache.delete(oldest);
+  }
 };
 
 const restoreSiteCache = (siteId: string): boolean => {
