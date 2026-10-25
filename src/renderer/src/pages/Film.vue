@@ -153,7 +153,7 @@ import { prefix } from '@/config/global';
 import { t } from '@/locales';
 import { usePlayStore, useSettingStore } from '@/store';
 
-import { fetchSiteActive } from '@/api/site';
+import { fetchSiteActive, warmSite } from '@/api/site';
 import emitter from '@/utils/emitter';
 import { renderImageError, renderImageLoading } from '@/utils/common/imageState';
 import { thumb } from '@/utils/common/imgThumb';
@@ -528,6 +528,11 @@ const getSetting = async () => {
     if (has(data, 'default') && !isEmpty(data['default'])) {
       siteConfig.value.default = data['default'];
       active.value.nav = data['default']['id'];
+      // 预热默认源：若默认源是网关（type 8）源，后台触发 classify 填 Player 侧缓存 + 网关侧 home 缓存，
+      // 让首次点源即命中缓存，规避 spider 首次初始化的冷启动（非 type 8 源由后端忽略）。
+      if (data['default']?.type === 8 && data['default']?.id) {
+        warmSite(data['default'].id).catch((e) => console.log('[film][warm][error]', e?.message || e));
+      }
     } else {
       infiniteCompleteTip.value = t('pages.film.infiniteLoading.noData');
     }
