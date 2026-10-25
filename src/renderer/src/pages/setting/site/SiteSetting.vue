@@ -410,6 +410,14 @@ const checkAllSite = async (select) => {
     });
 
     await Promise.all(checkData.map((item) => queue.add(() => checkSingleEvent(item, true))));
+    // 批量检测里出现「不支持」时汇总说一句：逐个弹提示会被刷屏，而这类源靠重试是救不回来的
+    const unsupported = checkData.filter((item) => item?.resource === -2).length;
+    if (unsupported > 0) {
+      MessagePlugin.warning(
+        `${t('pages.setting.table.notSupport')} ${unsupported} · ${t('pages.setting.gateway.unsupportedAdvice')}`,
+        6000,
+      );
+    }
   } catch (err) {
     console.error('[setting][site][checkAllSite][error]', err);
     throw err;
