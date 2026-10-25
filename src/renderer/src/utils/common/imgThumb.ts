@@ -1,9 +1,14 @@
 // 列表海报缩略图 URL 包装。
 //
-// 列表页一次渲染几十张第三方源海报，原图往往 500~800px 宽（几百 KB ~ 上 MB），
-// 而卡片实际只显示约 280px。滚动时整屏加载原图既费流量又容易卡。
-// 这里把原图 URL 包装成主进程的图片缩略代理（/api/v1/img/thumb），由它抓原图
-// 压缩成小图并落磁盘缓存；详情页 / 播放页仍直接用原图，保证清晰度。
+// 【已关闭，默认直连原图】v1.3.0 曾把列表海报统一改走主进程 /api/v1/img/thumb 代理，
+// 但实测暴露出两个致命问题，导致封面大面积长时间「加载中」：
+//   1. 一屏 20~40 张图全部收敛到 127.0.0.1:9978 这**同一个 host**，撞上 HTTP/1.1
+//      的六连接上限，必须排队（v1.2.0 直连时图片分散在几十个图床域名，各自 6 并发）。
+//   2. 未命中缓存时代理返回 302 让浏览器直连原图，图床慢就长时间 pending（骨架一直转），
+//      图床防盗链则直接 403 —— 主进程抓图是带正确 Referer 的，浏览器直连不带。
+// 因此回退为直连原图（v1.2.0 行为），优先保证「加载快、不出错」。
+// 代理实现（主进程 routes/img.ts）保留未删，未来若要重启需先解决上述两点。
+const USE_PROXY = false;
 
 const THUMB_BASE = 'http://127.0.0.1:9978/api/v1/img/thumb';
 
@@ -20,6 +25,7 @@ const isRemoteHttp = (url: string) => /^https?:\/\//i.test(url);
  */
 export function thumb(url: string | undefined | null, width = 280): string {
   if (!url) return '';
+  if (!USE_PROXY) return url;
   if (!isRemoteHttp(url) || isThumbUrl(url)) return url;
   return `${THUMB_BASE}?url=${encodeURIComponent(url)}&w=${width}`;
 }
