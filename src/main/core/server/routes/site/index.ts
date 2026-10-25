@@ -81,6 +81,10 @@ async function syncFromGateway(configUrl: string, gatewayBase: string) {
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  // 网关报 supported=false 的源：本机 spider 池里没有它的类（安卓专属壳 / jar 换了新类名），
+  // 请求必然失败。同步时照旧建行（用户能看到并自己处理），但默认禁用，
+  // 这样既不会拖慢聚搜，也不会在「检测」里长期显示令人误解的「无数据」。
+  const unsupportedNames: string[] = [];
   for (const g of list) {
     const key = g?.key;
     const gApi = String(g?.api || '');
@@ -89,6 +93,8 @@ async function syncFromGateway(configUrl: string, gatewayBase: string) {
       skipped += 1;
       continue;
     }
+    const supported = g.supported !== false;
+    if (!supported) unsupportedNames.push(String(g.name || key));
     const api = `${base}/${encodeURIComponent(key)}`;
     keepApi.add(api);
     const doc = {
@@ -100,7 +106,8 @@ async function syncFromGateway(configUrl: string, gatewayBase: string) {
       playUrl: '',
       group: '网关',
       categories: '',
-      isActive: true,
+      supported,
+      isActive: supported,
     };
     const hit = byApi.get(api);
     if (hit?.id) {
@@ -136,6 +143,8 @@ async function syncFromGateway(configUrl: string, gatewayBase: string) {
     updated,
     skipped,
     removed,
+    unsupported: unsupportedNames.length,
+    unsupportedNames: unsupportedNames.slice(0, 6),
     changed: created + updated + removed > 0,
   };
 }

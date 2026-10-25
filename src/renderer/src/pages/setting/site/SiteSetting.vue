@@ -71,6 +71,7 @@
       </template>
       <template #resource="{ row }">
         <span v-if="row.resource > 0">{{ row.resource }}</span>
+        <span v-else-if="row.resource === -2">{{ $t('pages.setting.table.notSupport') }}</span>
         <span v-else-if="row.resource === -1">{{ $t('pages.setting.table.skip') }}</span>
         <span v-else>{{ $t('pages.setting.table.noData') }}</span>
       </template>
@@ -253,6 +254,22 @@ const onSyncGateway = async () => {
         `${t('pages.setting.gateway.success')}: 网关${total} · +${created} ~${updated} -${removed}`,
       );
     }
+    // 接口里大量源的爬虫是安卓专属（DexClassLoader + .so），桌面端解析不到类，必然无数据。
+    // 这类源已按 supported=false 自动禁用；说清楚原因，别让人以为是网络或软件坏了。
+    const unsupported = Number(res?.unsupported ?? 0);
+    if (unsupported > 0) {
+      const names = (res?.unsupportedNames || []).join('、');
+      const more = unsupported > (res?.unsupportedNames?.length || 0) ? ' 等' : '';
+      const body =
+        t('pages.setting.gateway.unsupportedBody').replace('{n}', String(unsupported)) +
+        `${names}${more}。` +
+        t('pages.setting.gateway.unsupportedAdvice');
+      DialogPlugin.alert({
+        header: t('pages.setting.gateway.unsupportedHeader'),
+        body,
+        confirmBtn: t('pages.setting.gateway.unsupportedOk'),
+      });
+    }
     isVisible.dialogGateway = false;
     refreshEvent(false);
   } catch (err: any) {
@@ -416,6 +433,8 @@ const checkSingleEvent = async (row, all = false) => {
     if (!all) {
       if (isActive) {
         MessagePlugin.success(t('pages.setting.form.success'));
+      } else if (row.resource === -2) {
+        MessagePlugin.warning(`${t('pages.setting.table.check')}: ${t('pages.setting.table.notSupport')}`);
       } else {
         MessagePlugin.warning(`${t('pages.setting.table.check')}: ${t('pages.setting.form.fail')}`);
       }

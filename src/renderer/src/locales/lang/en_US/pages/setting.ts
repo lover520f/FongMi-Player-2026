@@ -100,6 +100,11 @@ export default {
     success: 'Sync done',
     fail: 'Sync failed',
     empty: 'No data to sync',
+    unsupportedHeader: 'Some sources cannot run on desktop',
+    unsupportedBody:
+      '{n} sources of this config rely on Android-only spiders and cannot run on desktop. They were disabled: ',
+    unsupportedAdvice: 'Switch to another config (e.g. 饭太硬) or use the Android app to keep them.',
+    unsupportedOk: 'Got it',
     status: 'Status',
     running: 'Running',
     starting: 'Started (checking)',

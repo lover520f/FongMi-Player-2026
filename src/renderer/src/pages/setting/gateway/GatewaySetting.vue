@@ -125,7 +125,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next';
 
 import { t } from '@/locales';
 import {
@@ -300,13 +300,19 @@ const onApplyConfig = async () => {
       return;
     }
     let tip = t('pages.setting.gateway.applyOk');
+    let unsupported = 0;
+    let unsupportedNames: string[] = [];
     try {
       const sync = (await syncGatewaySites({ configUrl: '' })) as {
         total?: number;
         created?: number;
         updated?: number;
         removed?: number;
+        unsupported?: number;
+        unsupportedNames?: string[];
       };
+      unsupported = Number(sync?.unsupported ?? 0);
+      unsupportedNames = sync?.unsupportedNames || [];
       tip = `${tip}: 网关${sync?.total ?? 0} · +${sync?.created ?? 0} ~${sync?.updated ?? 0} -${sync?.removed ?? 0}`;
     } catch (e) {
       await MessagePlugin.warning(
@@ -316,7 +322,20 @@ const onApplyConfig = async () => {
       );
       return;
     }
-    await MessagePlugin.success(tip);
+    if (unsupported > 0) {
+      // 接口换了安卓专属爬虫时，桌面端只能跑一小部分源：当场说清楚，别等用户逐个「检测」才发现
+      const body =
+        t('pages.setting.gateway.unsupportedBody').replace('{n}', String(unsupported)) +
+        `${unsupportedNames.join('、')}${unsupported > unsupportedNames.length ? ' 等' : ''}。` +
+        t('pages.setting.gateway.unsupportedAdvice');
+      DialogPlugin.alert({
+        header: t('pages.setting.gateway.unsupportedHeader'),
+        body,
+        confirmBtn: t('pages.setting.gateway.unsupportedOk'),
+      });
+    } else {
+      await MessagePlugin.success(tip);
+    }
     emitter.emit('refreshFilmConfig');
     emitter.emit('refreshSiteTable');
   } catch (e) {

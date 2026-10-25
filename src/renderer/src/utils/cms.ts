@@ -413,6 +413,11 @@ const fetchClassify = async (site) => {
  * @returns boolean
  */
 const checkValid = async (site) => {
+  // 网关同步时已确认本机跑不了（安卓专属爬虫 / 池里没有这个类）：直接标 -2「不支持」，
+  // 不发那次注定失败的请求，也不用「无数据」去误导用户以为是网络问题。
+  if (site?.supported === false) {
+    return { status: false, resource: -2 };
+  }
   try {
     const data = await fetchClassify(site);
     let status = !isEmpty(data.classData);
@@ -454,9 +459,17 @@ const checkValid = async (site) => {
     };
   } catch (err) {
     console.error(err);
+    // 网关的失败回包会带出爬虫类问题（安卓专属壳 / 池里缺类）：这类源不是「没数据」，
+    // 是根本跑不了，标 -2 让界面显示「不支持」。
+    const msg = String(
+      (err as any)?.response?.data?.message || (err as any)?.response?.data?.raw || (err as any)?.message || '',
+    );
+    const unsupported =
+      site?.supported === false ||
+      /spider class not found|spider null for|requires Android native|DexClassLoader|ClassNotFoundException/i.test(msg);
     return {
       status: false,
-      resource: 0,
+      resource: unsupported ? -2 : 0,
     };
   }
 };
