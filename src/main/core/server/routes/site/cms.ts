@@ -104,6 +104,8 @@ const removeHTMLTagsAndSpaces = (str) => {
 // 源站是「加载慢」的一大来源。这里加一层内存缓存，命中则直接返回，省掉一整跳 RTT。
 // TTL 取 10 分钟：既能让分类秒出，又不至于长期不刷新导致栏目变化看不到。
 const CLASSIFY_TTL = 10 * 60 * 1000; // 10 分钟
+// 分类缓存按源 id 一个 key，上限 100 已远超实际源数量，主要是防异常/历史源 id 无限累积。
+const CLASSIFY_CACHE_MAX = 100;
 const classifyCache = new Map<string, { at: number; data: any }>();
 
 /**
@@ -318,7 +320,16 @@ const classify = async (id) => {
       total,
       filters,
     };
-    classifyCache.set(id, { at: Date.now(), data: result });
+    // 空分类不缓存：某些源首次/临时返回空 class 是常态，若把空结果缓存 10 分钟，
+    // 切源/切回后在 TTL 内会持续拿到空分类，前端兜底与重试都救不回来（与 gateway
+    // home/category 空结果不缓存的收口保持一致）。
+    if (isArray(classData) && classData.length > 0) {
+      if (classifyCache.size >= CLASSIFY_CACHE_MAX && !classifyCache.has(id)) {
+        const oldest = classifyCache.keys().next().value;
+        if (oldest !== undefined) classifyCache.delete(oldest);
+      }
+      classifyCache.set(id, { at: Date.now(), data: result });
+    }
     return result;
   } catch (err) {
     throw err;
@@ -364,6 +375,9 @@ const convertVideoList = (videoItems) => {
 // 列表数据按 (id, pg, t, f) 缓存一段很短的时间（15s）。切分类再切回、来回滚动时
 // 秒出；TTL 短，基本不会长期显示过期数据。过滤条件 f 参与 key，避免不同筛选串数据。
 const LIST_TTL = 15 * 1000; // 15 秒
+// 列表缓存 key 是 id|pg|t|f，翻页/切分类/切筛选会不断产生新 key，无界累积是真实的
+// 内存泄漏风险（后端进程长期运行）。给个上限，超出淘汰最旧（Map 遍历顺序即插入序）。
+const LIST_CACHE_MAX = 500;
 const listCache = new Map<string, { at: number; data: any[] }>();
 
 const list = async (id, pg = 1, t, f = {}) => {
@@ -428,7 +442,15 @@ const list = async (id, pg = 1, t, f = {}) => {
     } else if (site.type === 4) {
       videoList = jsondata.data.list;
     }
-    listCache.set(cacheKey, { at: Date.now(), data: videoList });
+    // 空列表不缓存：与 classify/gateway 的空结果收口一致，空列表若缓存 15s，
+    // 切分类/切回后会在 TTL 内持续拿到空列表，前端兜底与重试都救不回来。
+    if (isArray(videoList) && videoList.length > 0) {
+      if (listCache.size >= LIST_CACHE_MAX && !listCache.has(cacheKey)) {
+        const oldest = listCache.keys().next().value;
+        if (oldest !== undefined) listCache.delete(oldest);
+      }
+      listCache.set(cacheKey, { at: Date.now(), data: videoList });
+    }
     return videoList;
   } catch (err) {
     throw err;
