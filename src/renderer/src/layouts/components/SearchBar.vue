@@ -189,6 +189,9 @@ const activeRouteName = computed(() => route.name);
 const keyword = computed(() => searchValue.value.trim());
 let hotReqId = 0; // 热榜请求代次：切源/重进页面后丢弃过期响应
 let historyReqId = 0; // 历史请求代次：清空后丢弃在途响应
+// tdesign 1.9.x 的浮层层级：t-popup 5500、t-dialog 2500。
+// 搜索面板内部弹出的确认框要高于 5500，否则会被面板挡住（含遮罩）。
+const DIALOG_ABOVE_POPUP_Z = 5600;
 
 /* ---------------------------------------------------------------- 搜索联想 */
 // 候选分两层：
@@ -489,6 +492,11 @@ const clearSearchHistory = async () => {
     body: t('pages.setting.table.deleteTip'),
     confirmBtn: t('pages.setting.dialog.confirm'),
     cancelBtn: t('pages.setting.dialog.cancel'),
+    // 这个确认框是在搜索面板（t-popup）里弹出来的，而 tdesign 的层级是
+    // popup 5500 > dialog 2500：不给 zIndex 就会被面板连同热门搜索整块盖住，
+    // 只能看见遮罩、点不到按钮。抬到面板之上，面板留在原地，
+    // 用户点「取消」后还能接着从历史里挑词。
+    zIndex: DIALOG_ABOVE_POPUP_Z,
     onConfirm: async () => {
       dialog.destroy();
       historyReqId++; // 先作废在途历史响应，避免清空后被回填
