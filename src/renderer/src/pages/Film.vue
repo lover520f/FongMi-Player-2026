@@ -183,6 +183,30 @@ const infiniteId = ref(+new Date()); // infinite-loading属性重置组件
 const searchTxt = ref(''); // 搜索框
 const searchCurrentSite = ref(); // 搜索当前源
 
+/* ------------------------------------------------------------ 聚搜调度 */
+// 聚搜原先是一轮只打一个源、靠滚动触发下一轮：24 个源要滚 20 次、实测 55.7s 才走完，
+// 结果不足一屏时哨兵一直在视口内，干脆推不动。改成一次并发打一批，谁先回来谁先上屏。
+// 只有 drpy（type 7）例外，它的 worker 是全局单例，见 runSerial。
+const SEARCH_CONCURRENCY = 6; // 一批同时打几个源
+const SEARCH_BATCH_GAP = 150; // 批次间隔：让这一批先渲染上屏，再打下一批
+// 单次搜索的总预算：源挂住时 request 自身有超时，但 24 个源串成 4 批仍可能拖很久，
+// 超出预算就停手，剩下的源留给用户继续滚动时接着搜（游标记着进度）
+const SEARCH_TOTAL_BUDGET = 20000;
+let searchCursor = 0; // 下一个还没派发的源下标（只增不减，天然防止回头重复搜）
+let searchInFlight = false; // 一批在途，挡住 infinite-loading 的重入
+let drpyChain: Promise<unknown> = Promise.resolve(); // drpy 串行锁
+
+// drpy 的 doWork 是模块级单例：worker / onmessage / timeout timer 全是共享变量，
+// 两个请求交错会互相覆盖 onmessage，先进的那个 Promise 永远等不到 resolve。
+// 所以 type 7 一律排队执行，init 与 search 之间也不能夹进别的 t3Work 调用。
+const runSerial = <T,>(task: () => Promise<T>): Promise<T> => {
+  const run = drpyChain.then(task, task);
+  drpyChain = run.catch(() => undefined);
+  return run;
+};
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 const formDetailData = ref({
   neme: '',
   key: '',
@@ -789,7 +813,9 @@ const load = async (
 
     const defaultSite = searchTxt.value ? searchCurrentSite.value : siteConfig.value.default;
     console.log(defaultSite);
-    if (defaultSite.type === 7 && !isVisible.t3Work) {
+    // 搜索不在这里 init：聚搜的每个源规则各不相同，统一 init 只能盖住第一个源，
+    // 且首个源失败会把整轮搜索直接判死。改由 searchOneSite 在各自的搜索任务里 init。
+    if (!searchTxt.value && defaultSite.type === 7 && !isVisible.t3Work) {
       const res = await t3RuleInit(defaultSite);
       if (res.code === 200) isVisible.t3Work = true;
       else {
@@ -855,60 +881,55 @@ const searchEvent = async () => {
   listGen.value++;
   infiniteId.value++;
   pagination.value.pageIndex = 1;
+  // 新一次搜索从第一个源重新开始：游标归零、在途标记清掉，否则会接着上一次的尾巴搜
+  searchCursor = 0;
+  searchInFlight = false;
   searchCurrentSite.value = siteConfig.value.searchGroup ? siteConfig.value.searchGroup[0] : null;
   void reloadList();
 };
 
-// 搜索加载数据
-const getSearchList = async () => {
-  let length = 0;
-  const gen = listGen.value;
-  const pg = pagination.value.pageIndex;
-  const searchGroup: any = siteConfig.value.searchGroup;
-  const currentSite = searchCurrentSite.value;
-
-  if (!currentSite) {
-    console.log('[film][search] No search site found.');
-    return length;
-  }
-
-  const index = searchGroup.indexOf(currentSite);
-  const isLastSite = index + 1 >= searchGroup.length;
-  if (index + 1 > searchGroup.length && searchGroup.length > 1) return length; // 没有更多站点
-  // if (pg > 5) return length; // 单个搜索不允许超过5页
-
-  // searchCurrentSite.value = isLastSite ? null : searchGroup[index + 1];
-  searchCurrentSite.value = isLastSite ? currentSite : searchGroup[index + 1];
+// 单个源的一次搜索：搜索 → 补图 → 去重入列表。聚搜时谁先回来谁先落地，
+// 用户不用等最慢的那个源。返回本源的净新增条数，失败/空结果一律算 0。
+const searchOneSite = async (site: any, gen: number, pg = 1): Promise<number> => {
+  const doSearch = async () => {
+    if (site.type === 7) {
+      try {
+        // drpy 必须先 init 本源的规则才能 search；两步都在这把锁里，中间不许夹别的源
+        const initRes = await t3RuleInit(site);
+        if (initRes?.code !== 200) {
+          console.log(`[film][search][drpy-init-fail] ${site.name}`);
+          return null;
+        }
+        return await fetchSearch(site, searchTxt.value, pg);
+      } finally {
+        // 搜完 worker 里装的是这个聚搜源的规则，回到常规浏览前必须让 load 重新 init，
+        // 否则会拿别人的规则去请求分类列表（原实现是在聚搜收尾时统一复位）
+        isVisible.t3Work = false;
+      }
+    }
+    return fetchSearch(site, searchTxt.value, pg);
+  };
 
   try {
-    const resultSearch = await fetchSearch(currentSite, searchTxt.value, pg);
-    if (gen !== listGen.value) {
-      console.log('[film][search] stale search response dropped');
-      return 0;
-    }
-    if (!resultSearch || resultSearch.length === 0) {
-      console.log('[film][search] Empty search results.');
-      // 聚搜过程中,如果某个站搜不出来结果，返回1让其他站继续搜索。单搜就返回0终止搜索
-      length = searchGroup.length > 1 ? 1 : 0;
-      return length;
-    }
+    const resultSearch: any = site.type === 7 ? await runSerial(doSearch) : await doSearch();
+    if (gen !== listGen.value) return 0; // 期间换了关键词/离页，结果作废
+    if (!resultSearch || resultSearch.length === 0) return 0;
 
-    // console.log('currentSite:', currentSite);
     let resultDetail =
       siteConfig.value.filter === 'on'
         ? resultSearch.filter((item) => item?.vod_name.indexOf(searchTxt.value) > -1)
         : resultSearch;
 
     if (resultSearch.length > 0 && !has(resultSearch[0], 'vod_pic')) {
-      if ([0, 1].includes(currentSite.type)) {
+      if ([0, 1].includes(site.type)) {
         const ids = resultSearch.map((item) => item.vod_id);
-        resultDetail = await fetchDetail(currentSite, ids.join(','));
-      } else if ([2, 6, 7].includes(currentSite.type)) {
+        resultDetail = await fetchDetail(site, ids.join(','));
+      } else if ([2, 6, 7].includes(site.type)) {
         console.log('[film][search] updatePic not use in drpy/hipy sites.');
       } else {
         const updatePic = async (item) => {
           try {
-            const result = await fetchDetail(currentSite, item.vod_id);
+            const result = await fetchDetail(site, item.vod_id);
             return result[0];
           } catch (error) {
             return false;
@@ -919,34 +940,74 @@ const getSearchList = async () => {
       }
     }
 
+    if (gen !== listGen.value) return 0;
     const filmList = resultDetail.map((item) => ({
       ...item,
-      relateSite: currentSite,
+      relateSite: site,
     }));
-
     const newFilms = appendUnique(filmList, filmData.value.list); // 去重
-    filmData.value.list.push(...newFilms);
-    // 最后一个站点，并且是聚搜，参与搜索的站点数大于1的情况，正常搜完一个就结束。只有一个站点正常搜索还要继续搜
-    length = isLastSite && searchGroup.length > 1 ? 0 : newFilms.length;
+    if (newFilms.length) filmData.value.list.push(...newFilms);
+    return newFilms.length;
   } catch (err) {
-    // 聚搜的某一个站点发生错误,返回1让其他站点能继续搜索。只有一个站点进行搜索的时候发生错误就返回0终止搜索
-    length = gen === listGen.value ? (searchGroup.length > 1 ? 1 : 0) : 0;
-    console.error(err);
-  } finally {
-    console.log(`[film] load data length: ${length}`);
-    if (gen === listGen.value) {
-      // 过期响应不再改动分发/规则状态
-      if (searchGroup.length > 1) {
-        // 聚搜的站点每个搜索完都重新初始化drpy源
-        isVisible.t3Work = false;
-        isVisible.catvod = false;
-      } else {
-        // 只有一个站点搜索的情况给页面加1下次继续搜索
-        pagination.value.pageIndex++;
-      }
-    }
+    // 单个源挂掉只丢这个源，不能拖累整轮聚搜
+    console.log(`[film][search][site-fail] ${site?.name}: ${err}`);
+    return 0;
   }
-  return length;
+};
+
+// 搜索加载数据
+const getSearchList = async () => {
+  const gen = listGen.value;
+  const searchGroup: any = siteConfig.value.searchGroup;
+
+  if (!searchGroup || !searchGroup.length) {
+    console.log('[film][search] No search site found.');
+    return 0;
+  }
+
+  // 单源搜索保持原语义：一次一问，问完页号加一，搜空即收尾
+  if (searchGroup.length === 1) {
+    const added = await searchOneSite(searchGroup[0], gen, pagination.value.pageIndex);
+    if (gen !== listGen.value) return 0;
+    pagination.value.pageIndex++;
+    return added;
+  }
+
+  // 聚搜：游标只增不减，全部派发完就收尾。原实现「索完一轮就把 searchCurrentSite
+  // 停在最后一个源」，空源又返回 1 让滚动继续触发，于是同一个源被反复搜、
+  // 一次滚动打几十个请求也停不下来——游标到顶直接返回 0 就是在堵这个口子。
+  if (searchInFlight) {
+    await sleep(SEARCH_BATCH_GAP); // 上一批还在飞：等一拍再让哨兵试，避免空转刷屏
+    return 1;
+  }
+  if (searchCursor >= searchGroup.length) return 0;
+
+  searchInFlight = true;
+  const deadline = Date.now() + SEARCH_TOTAL_BUDGET;
+  try {
+    // 这里是把游标一路推到底，而不是「跑一批就返回、等哨兵再触发」：
+    // 结果一多就把哨兵顶出视口，而哨兵只在「进入视口」时才会回调，用户不滚动
+    // 后半批源就永远不会被搜。批与批之间留一个小间隔，让这一批先渲染上屏。
+    while (searchCursor < searchGroup.length && Date.now() < deadline) {
+      const batch = searchGroup.slice(searchCursor, searchCursor + SEARCH_CONCURRENCY);
+      searchCursor += batch.length;
+      console.log(`[film][search] batch ${batch.length} sites, cursor=${searchCursor}/${searchGroup.length}`);
+      // allSettled：单源失败不影响同批其它源（searchOneSite 内部已兜住异常）
+      await Promise.allSettled(batch.map((site) => searchOneSite(site, gen)));
+      if (gen !== listGen.value) return 0; // 换词/离页：剩下的批次不必再打
+      if (searchCursor < searchGroup.length) await sleep(SEARCH_BATCH_GAP);
+    }
+  } finally {
+    // 守卫代次：期间用户又搜了新词时，这批已经作废，不能顺手把新批次的在途标记清掉，
+    // 否则哨兵会立刻再开一批，游标跳着走、同几个源被重复搜
+    if (gen === listGen.value) searchInFlight = false;
+  }
+
+  if (gen !== listGen.value) return 0;
+  // 预算用完但还有源没搜：返回非 0，让用户继续滚动时接着搜（游标记着进度）
+  if (searchCursor < searchGroup.length) return 1;
+  // 全搜完了：有结果就让无限滚动收尾，没结果直接 complete
+  return filmData.value.list.length > 0 ? 1 : 0;
 };
 
 // 切换站点
