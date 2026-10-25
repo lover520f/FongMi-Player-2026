@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { createHash } from 'crypto';
 import { join } from 'path';
-import { app } from 'electron';
+import { app, nativeImage } from 'electron';
 import fs from 'fs-extra';
 import http from 'http';
 import https from 'https';
@@ -15,11 +15,12 @@ const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 天
 const FETCH_TIMEOUT = 10000; // 抓原图超时
 const MAX_THUMB_WIDTH = 640; // 最大缩略宽度，防止被传超大值打爆内存
 const MAX_UPSTREAM_BYTES = 8 * 1024 * 1024; // 原图超过 8MB 直接放弃，防止内存被打爆
-const WARM_CONCURRENCY = 3; // 异步预热并发上限，避免几十张图同时压缩打爆主进程
+const BUILD_CONCURRENCY = 6; // 后台预热并发：不抢浏览器的带宽，慢慢把缓存填满
+const JPEG_QUALITY = 82;
 
 // jimp 是纯 JS 图片库（零原生依赖），在 electron 打包里无需重建。
-// 这里用动态 import，并做一次后台预热：否则首个缩略请求会卡在 ~150ms 的
-// jimp 冷启动上。预热失败不影响主流程（路由会兜底回原图）。
+// 现在它只作为 nativeImage 解不了的格式（如 webp）的兜底。
+// 动态 import + 后台预热：否则首个兜底请求会卡在 ~150ms 的 jimp 冷启动上。
 const loadJimp = async () => (await import('jimp')).default;
 let jimpReady: Promise<unknown> | null = null;
 const warmJimp = () => {
@@ -142,61 +143,103 @@ const fetchBufferInner = (url: string, redirects: number): Promise<Buffer> => {
   });
 };
 
-// —— 异步预热：未命中缓存时，先在后台把原图抓下来压缩好写进缓存。
-// 请求本身立刻 302 回原图（不阻塞），预热完成后下次再访问就走缓存小图。
+// —— 生成缩略图：抓原图 → 缩放 → 统一编码成 JPEG。
+//
+// 优先用 electron 自带的 nativeImage（C++ 实现）；解不出来的格式再回退 jimp。
+// 实测列表海报常见是 443x714 / 579KB 这种「分辨率不大但没压缩」的原图，
+// 缩到 280px 宽后只有 20~30KB，卡片显示的清晰度基本无损。
+// 两种解码器都解不了时抛 UnsupportedFormat，由调用方区分「格式不行」和「网络临时失败」。
+class UnsupportedFormat extends Error {}
 
-// 内存态去重：正在预热中的 key，避免同一张图被列表里多个引用重复触发。
-const inflight = new Set<string>();
-// 简单并发池：限制同时进行的压缩任务数，保护主进程不被几十张图打爆。
+const buildThumb = async (url: string, w: number): Promise<Buffer> => {
+  const body = await fetchBuffer(url);
+
+  try {
+    const img = nativeImage.createFromBuffer(body);
+    if (!img.isEmpty()) {
+      const { width } = img.getSize();
+      const out = width > w ? img.resize({ width: w, quality: 'good' }).toJPEG(JPEG_QUALITY) : img.toJPEG(JPEG_QUALITY);
+      if (out.length) return out;
+    }
+  } catch {
+    /* 落到 jimp 兜底 */
+  }
+
+  try {
+    const Jimp = await loadJimp();
+    const image = await Jimp.read(body);
+    if (image.getWidth() > w) image.resize(w, Jimp.AUTO);
+    image.quality(JPEG_QUALITY);
+    return await image.getBufferAsync(Jimp.MIME_JPEG);
+  } catch {
+    throw new UnsupportedFormat('cannot decode image');
+  }
+};
+
+// 并发池：限制同时进行的「下载 + 缩放」，保护主进程和网络，不设太大否则几十张
+// 4K 原图同时进内存。
 let active = 0;
-const queue: Array<() => void> = [];
-
-const acquireSlot = () =>
+const waiting: Array<() => void> = [];
+const acquire = () =>
   new Promise<void>((resolve) => {
-    if (active < WARM_CONCURRENCY) {
+    if (active < BUILD_CONCURRENCY) {
       active++;
       resolve();
     } else {
-      queue.push(resolve);
+      waiting.push(resolve);
     }
   });
-const releaseSlot = () => {
-  const next = queue.shift();
+const release = () => {
+  const next = waiting.shift();
   if (next) next();
   else active--;
 };
 
-// 抓原图 → 压缩 → 写缓存。全程 try/catch，任何失败都静默（路由已兜底回原图）。
-const warmThumb = async (url: string, w: number, cachePath: string) => {
+// 同一张图可能被列表里多处引用（同一部剧出现在多个源），共享同一次生成
+const inflight = new Map<string, Promise<unknown>>();
+
+// nativeImage 解不了 webp（实测 isEmpty），jimp 0.22 也不支持，这类图预热必然失败。
+// 记下来别再重试：否则每次刷新列表，同一批 webp 都要被主进程白下载一遍。
+// webp 本身已经压得很小（实测 17KB），直连原图并不吃亏。
+const unsupported = new Set<string>();
+const UNSUPPORTED_MAX = 2000;
+
+// 后台预热：抓原图 → 缩放 → 写缓存。
+// 返回 true 表示「格式不支持，别再试了」；网络类失败返回 false，下次还会重试。
+const warmThumb = async (url: string, w: number, cachePath: string): Promise<boolean> => {
   try {
-    const body = await fetchBuffer(url);
-    const Jimp = await loadJimp();
-    const image = await Jimp.read(body);
-    const targetW = image.getWidth() > w ? w : image.getWidth();
-    image.resize(targetW, Jimp.AUTO);
-    image.quality(80);
-    const out = await image.getBufferAsync(Jimp.MIME_JPEG);
+    const out = await buildThumb(url, w);
     await fs.ensureDir(CACHE_DIR);
     await fs.writeFile(cachePath, out);
     sweepIfNeeded();
-  } catch {
-    /* 预热失败静默忽略，下次请求会再试 */
+    return false;
+  } catch (err) {
+    return err instanceof UnsupportedFormat;
   }
 };
 
 const enqueueWarm = (url: string, w: number, cachePath: string) => {
+  if (unsupported.has(cachePath)) return; // 这个格式处理不了，别再白下载
   if (inflight.has(cachePath)) return; // 已在预热中
-  inflight.add(cachePath);
-  acquireSlot().then(() =>
-    warmThumb(url, w, cachePath).finally(() => {
-      inflight.delete(cachePath);
-      releaseSlot();
-    }),
-  );
+  const task = (async () => {
+    await acquire();
+    try {
+      return await warmThumb(url, w, cachePath);
+    } finally {
+      release();
+    }
+  })();
+  inflight.set(cachePath, task);
+  void task.then((dead) => {
+    inflight.delete(cachePath);
+    if (!dead) return;
+    if (unsupported.size > UNSUPPORTED_MAX) unsupported.clear();
+    unsupported.add(cachePath);
+  });
 };
 
 const api: FastifyPluginAsync = async (fastify): Promise<void> => {
-  warmJimp(); // 插件注册即预热 jimp，避免首个请求卡冷启动
+  warmJimp(); // 插件注册即预热 jimp，兜底路径不卡冷启动
 
   fastify.get(
     `/${API_VERSION}/img/thumb`,
@@ -213,7 +256,7 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
       const cacheKey = createHash('md5').update(`${w}::${url}`).digest('hex') + '.jpg';
       const cachePath = join(CACHE_DIR, cacheKey);
 
-      // 命中缓存 → 直接回小图
+      // 命中磁盘缓存 → 直接回小图
       if (cacheHit(cachePath)) {
         try {
           const buf = await fs.readFile(cachePath);
@@ -222,12 +265,16 @@ const api: FastifyPluginAsync = async (fastify): Promise<void> => {
           reply.header('Content-Length', buf.length);
           return reply.send(buf);
         } catch {
-          /* 读缓存失败，落到下面的原图兜底 */
+          /* 读缓存失败，落到下面重新生成 */
         }
       }
 
-      // 未命中缓存 → 立即 302 回原图（浏览器直接并发拉原图，冷加载不卡），
-      // 同时后台异步预热，下次再访问就走缓存小图。
+      // 未命中缓存 → 立即 302 回原图，同时后台预热。
+      //
+      // 为什么不在请求里同步生成：那样首次访问要等主进程把原图下载完再缩放，
+      // 而浏览器本来可以同时向十几个图床各自并发拉取——实测同步生成反而更慢
+      // （一批 8 张 4.6s，直连只要 1.3s）。首次的下载量省不掉，就别让它变差。
+      // 预热填好缓存后，同一个 URL 下次直接命中 25KB 的缩略图。
       enqueueWarm(url, w, cachePath);
       return reply.redirect(url);
     },

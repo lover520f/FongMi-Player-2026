@@ -1,22 +1,34 @@
 // 列表海报缩略图 URL 包装。
 //
-// 【已关闭，默认直连原图】v1.3.0 曾把列表海报统一改走主进程 /api/v1/img/thumb 代理，
-// 但实测暴露出两个致命问题，导致封面大面积长时间「加载中」：
-//   1. 一屏 20~40 张图全部收敛到 127.0.0.1:9978 这**同一个 host**，撞上 HTTP/1.1
-//      的六连接上限，必须排队（v1.2.0 直连时图片分散在几十个图床域名，各自 6 并发）。
-//   2. 未命中缓存时代理返回 302 让浏览器直连原图，图床慢就长时间 pending（骨架一直转），
-//      图床防盗链则直接 403 —— 主进程抓图是带正确 Referer 的，浏览器直连不带。
-// 因此回退为直连原图（v1.2.0 行为），优先保证「加载快、不出错」。
-// 代理实现（主进程 routes/img.ts）保留未删，未来若要重启需先解决上述两点。
-const USE_PROXY = false;
-
-const THUMB_BASE = 'http://127.0.0.1:9978/api/v1/img/thumb';
+// 为什么走本机代理：列表卡片只显示 200~300px 宽，但源站海报常常是没压缩过的原图
+// （实测 443x714 的图就有 579KB 一张）。直连意味着每台机器首次访问都要把几十张
+// 原图整个拉下来，还要跨十几个图床做 DNS/TCP/TLS 握手——滚动时就是一屏一屏地转圈。
+// 代理把它缩到 280px 宽再返回，单张 20~30KB，并落盘缓存 7 天，二次访问直接命中。
+//
+// 为什么要用多个端口：浏览器对同一个 origin（scheme + host + port）只有 6 个
+// HTTP/1.1 并发连接，几十张图全收敛到 9978 会排队——这正是 v1.3.0 回退代理的原因。
+// 主进程在 9978 之外还开了 9988/9989/9990 三个转发端口（见 server/index.ts），
+// 这里按图片地址哈希把请求打散到 4 个 origin，合计 24 个并发连接。
+const THUMB_BASES = [
+  'http://127.0.0.1:9978/api/v1/img/thumb',
+  'http://127.0.0.1:9988/api/v1/img/thumb',
+  'http://127.0.0.1:9989/api/v1/img/thumb',
+  'http://127.0.0.1:9990/api/v1/img/thumb',
+];
 
 // 已经是我们自己代理出来的 URL，不再二次包装（避免嵌套编码）
 const isThumbUrl = (url: string) => url.includes('/api/v1/img/thumb');
 
 // 不是可代理的 http(s) 图片（data: / blob: / 相对路径），原样返回
 const isRemoteHttp = (url: string) => /^https?:\/\//i.test(url);
+
+// 稳定的端口选择：同一个 url 每次都要落在同一个 origin，
+// 否则同一张图会在多个端口下各缓存一份，白白多下载一次。
+const pickBase = (url: string) => {
+  let h = 0;
+  for (let i = 0; i < url.length; i++) h = (h * 31 + url.charCodeAt(i)) >>> 0;
+  return THUMB_BASES[h % THUMB_BASES.length];
+};
 
 /**
  * 把原图 URL 包装成指定宽度的缩略图 URL。
@@ -25,7 +37,6 @@ const isRemoteHttp = (url: string) => /^https?:\/\//i.test(url);
  */
 export function thumb(url: string | undefined | null, width = 280): string {
   if (!url) return '';
-  if (!USE_PROXY) return url;
   if (!isRemoteHttp(url) || isThumbUrl(url)) return url;
-  return `${THUMB_BASE}?url=${encodeURIComponent(url)}&w=${width}`;
+  return `${pickBase(url)}?url=${encodeURIComponent(url)}&w=${width}`;
 }
