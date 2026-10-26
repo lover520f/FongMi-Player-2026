@@ -27,8 +27,38 @@ export type GatewaySettings = {
 
 const DEFAULT_CONFIG_HISTORY: GatewayConfigSource[] = [
   { name: '饭太硬', url: 'http://www.饭太硬.cc/tv' },
-  { name: '王二小', url: 'http://tvbox.王二小放牛娃.top' },
+  { name: '王二小', url: 'https://9280.kstore.vip/newwex.json' },
 ];
+
+/**
+ * The 牛二 vanity hosts now 302 to an HTML landing page instead of a TVBox JSON.
+ * The only endpoints that still return the config are the direct links on 9280.kstore.vip
+ * (the landing page itself lists them as "牛二(新接口防屏蔽)" / "牛二(凯速)").
+ * Rewrite the dead hosts on read so existing installs pick up the fix without a DB migration.
+ */
+const STALE_CONFIG_HOSTS = new Set([
+  'tvbox.王二小放牛娃.top',
+  'tvbox.xn--4kq62z5rby2qupq9ub.top',
+  'tv.999888987.xyz',
+  'tv.999888123.xyz',
+  'new.王二小放牛娃.top',
+  'new.xn--4kq62z5rby2qupq9ub.top',
+  'ai.王二小放牛娃.top',
+  'ai.xn--4kq62z5rby2qupq9ub.top',
+]);
+const STALE_CONFIG_FALLBACK = 'https://9280.kstore.vip/newwex.json';
+
+export function rewriteStaleConfigUrl(url: string): string {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  let host = '';
+  try {
+    host = new URL(raw).hostname.toLowerCase();
+  } catch {
+    return raw;
+  }
+  return STALE_CONFIG_HOSTS.has(host) ? STALE_CONFIG_FALLBACK : raw;
+}
 
 const DEFAULTS: GatewaySettings = {
   javaHome: '',
@@ -50,16 +80,25 @@ export function configNameOf(url: string): string {
 
 export function mergeConfigHistory(history: unknown, config?: string): GatewayConfigSource[] {
   const list: GatewayConfigSource[] = [];
-  const seen = new Set<string>();
   const push = (h: unknown) => {
     const rec = (h || {}) as { url?: unknown; name?: unknown };
-    const url = String(rec.url || '').trim();
-    if (!url || seen.has(url)) return;
-    seen.add(url);
-    list.push({ name: String(rec.name || '').trim() || configNameOf(url), url });
+    const url = rewriteStaleConfigUrl(String(rec.url || '').trim());
+    if (!url) return;
+    const given = String(rec.name || '').trim();
+    const idx = list.findIndex((x) => x.url === url);
+    if (idx >= 0) {
+      // Prefer an explicit name over a hostname-derived one ("王二小" beats "9280.kstore.vip").
+      const cur = list[idx].name;
+      if (given && (!cur || cur === configNameOf(list[idx].url))) list[idx].name = given;
+      return;
+    }
+    list.push({ name: given || configNameOf(url), url });
   };
+  // Built-in presets first so they always appear with their canonical names/URLs,
+  // then whatever the user has accumulated on top of them.
+  DEFAULT_CONFIG_HISTORY.forEach(push);
   if (Array.isArray(history)) history.forEach(push);
-  const cur = String(config || '').trim();
+  const cur = rewriteStaleConfigUrl(String(config || '').trim());
   if (cur) {
     const idx = list.findIndex((x) => x.url === cur);
     if (idx > 0) {
@@ -78,10 +117,17 @@ let lastLog = '';
 
 export function getGatewaySettings(): GatewaySettings {
   const raw = setting.find({ key: 'gateway' }).value;
-  if (raw && typeof raw === 'object') {
-    return { ...DEFAULTS, ...(raw as Partial<GatewaySettings>) };
-  }
-  return { ...DEFAULTS };
+  const base: GatewaySettings =
+    raw && typeof raw === 'object'
+      ? { ...DEFAULTS, ...(raw as Partial<GatewaySettings>) }
+      : { ...DEFAULTS };
+  // Self-heal stale 牛二 vanity URLs on read so the config dropdown and the
+  // active config both move to the working endpoint without a one-shot migration.
+  return {
+    ...base,
+    config: rewriteStaleConfigUrl(base.config),
+    configHistory: mergeConfigHistory(base.configHistory, rewriteStaleConfigUrl(base.config)),
+  };
 }
 
 export function saveGatewaySettings(patch: Partial<GatewaySettings>): GatewaySettings {
